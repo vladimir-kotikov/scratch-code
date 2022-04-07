@@ -11,7 +11,7 @@ export class Scratch extends TreeItem {
   constructor(public readonly uri: Uri) {
     super(uri, TreeItemCollapsibleState.None);
     this.command = {
-      command: "open",
+      command: "vscode.open",
       title: "Open",
       arguments: [uri],
     };

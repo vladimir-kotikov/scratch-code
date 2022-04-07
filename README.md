@@ -26,3 +26,8 @@ Initial release of the extension
 ### 0.1.1
 
 - Fix extension activation on command
+
+### 0.1.2
+
+- Allow deleting open scratches via command palette
+- Fix scratch open command

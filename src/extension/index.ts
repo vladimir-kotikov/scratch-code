@@ -32,7 +32,20 @@ export class ScratchExtension {
     await vscode.commands.executeCommand("vscode.open", uri);
   };
 
-  deleteScratch = async (scratch: Scratch) => {
-    await this.fileSystemProvider.delete(scratch.uri);
+  deleteScratch = async (scratch?: Scratch) => {
+    let uri = scratch?.uri;
+
+    if (uri === undefined) {
+      const maybeUri = vscode.window.activeTextEditor?.document.uri;
+      uri = maybeUri?.scheme === "scratch" ? maybeUri : undefined;
+    }
+
+    if (uri) {
+      try {
+        await this.fileSystemProvider.delete(uri);
+      } catch (e) {
+        console.warn(`Error while removing ${uri}`, e);
+      }
+    }
   };
 }

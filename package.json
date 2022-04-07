@@ -1,0 +1,106 @@
+{
+  "name": "scratch-code",
+  "displayName": "scratch-code",
+  "description": "Scratchpad for VSCode",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vladimir-kotikov/scratch-code.git"
+  },
+  "engines": {
+    "vscode": "^1.66.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onFileSystem:scratch",
+    "onCommand:scratches.newScratch",
+    "onView:scratches"
+  ],
+  "main": "./out/main.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "scratches.newScratch",
+        "title": "New",
+        "category": "Scratches",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "scratches.reloadScratches",
+        "title": "Reload",
+        "category": "Scratches",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "scratches.deleteScratch",
+        "title": "Delete",
+        "category": "Scratches",
+        "icon": "$(trash)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "scratches",
+          "name": "Scratches"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "scratches",
+        "contents": "No scratches found\n[Create a new one](command:scratches.newScratch)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "scratches.reloadScratches",
+          "when": "view == scratches",
+          "group": "navigation"
+        },
+        {
+          "command": "scratches.newScratch",
+          "when": "view == scratches",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "scratches.deleteScratch",
+          "when": "view == scratches",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn clean && yarn compile",
+    "clean": "rimraf out",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "yarn run compile && yarn run lint",
+    "format": "prettier --write src && eslint src/**/*.ts --fix",
+    "lint": "eslint src --ext ts && ",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "14.x",
+    "@types/vscode": "^1.66.0",
+    "@typescript-eslint/eslint-plugin": "^5.16.0",
+    "@typescript-eslint/parser": "^5.16.0",
+    "@vscode/test-electron": "^2.1.3",
+    "eslint": "^8.11.0",
+    "glob": "^7.2.0",
+    "mocha": "^9.2.2",
+    "prettier": "^2.6.2",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.5.5",
+    "vsce": "^2.7.0"
+  }
+}

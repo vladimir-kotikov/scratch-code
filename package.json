@@ -8,6 +8,7 @@
     "type": "git",
     "url": "https://github.com/vladimir-kotikov/scratch-code.git"
   },
+  "publisher": "vlkoti",
   "engines": {
     "vscode": "^1.66.0"
   },

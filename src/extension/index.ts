@@ -32,10 +32,6 @@ export class ScratchExtension {
     await vscode.commands.executeCommand("vscode.open", uri);
   };
 
-  reloadScratches = async () => {
-    this.treeDataProvider.reload();
-  };
-
   deleteScratch = async (scratch: Scratch) => {
     await this.fileSystemProvider.delete(scratch.uri);
   };

@@ -2,7 +2,7 @@
   "name": "scratch-code",
   "displayName": "scratch-code",
   "description": "Scratchpad for VSCode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,6 +18,7 @@
   "activationEvents": [
     "onFileSystem:scratch",
     "onCommand:scratches.newScratch",
+    "onCommand:scratches.deleteScratch",
     "onView:scratches"
   ],
   "main": "./out/main.js",
@@ -28,12 +29,6 @@
         "title": "New",
         "category": "Scratches",
         "icon": "$(new-file)"
-      },
-      {
-        "command": "scratches.reloadScratches",
-        "title": "Reload",
-        "category": "Scratches",
-        "icon": "$(refresh)"
       },
       {
         "command": "scratches.deleteScratch",
@@ -59,11 +54,6 @@
     "menus": {
       "view/title": [
         {
-          "command": "scratches.reloadScratches",
-          "when": "view == scratches",
-          "group": "navigation"
-        },
-        {
           "command": "scratches.newScratch",
           "when": "view == scratches",
           "group": "navigation"
@@ -84,8 +74,8 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "yarn run compile && yarn run lint",
-    "format": "prettier --write src && eslint src/**/*.ts --fix",
-    "lint": "eslint src --ext ts && ",
+    "fmt": "prettier --write src && eslint src/**/*.ts --fix",
+    "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {

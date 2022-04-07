@@ -17,15 +17,11 @@ export function activate(context: vscode.ExtensionContext) {
       extension.fileSystemProvider
     ),
     vscode.commands.registerCommand(
-      "codeScratches.newScratch",
+      "scratches.newScratch",
       extension.newScratch
     ),
     vscode.commands.registerCommand(
-      "codeScratches.reloadScratches",
-      extension.reloadScratches
-    ),
-    vscode.commands.registerCommand(
-      "codeScratches.deleteScratch",
+      "scratches.deleteScratch",
       extension.deleteScratch
     )
   );

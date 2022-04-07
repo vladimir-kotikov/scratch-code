@@ -22,3 +22,7 @@ This is an initial release so no issues are known yet :)
 ### 0.1.0
 
 Initial release of the extension
+
+### 0.1.1
+
+- Fix extension activation on command

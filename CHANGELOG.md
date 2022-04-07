@@ -5,3 +5,7 @@ All notable changes to the "scratch-code" extension will be documented in this f
 ## 0.1.0
 
 Initial release of the extension
+
+## 0.1.1
+
+- Fix extension activation on command

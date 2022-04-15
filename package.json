@@ -70,12 +70,13 @@
   },
   "scripts": {
     "vscode:prepublish": "yarn clean && yarn compile",
+    "vscode:publish": "vsce publish",
     "clean": "rimraf out",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "yarn run compile && yarn run lint",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
-    "lint": "eslint src --ext ts",
+    "lint": "prettier --check src && eslint src/**/*.ts",
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {

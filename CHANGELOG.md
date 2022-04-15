@@ -14,3 +14,8 @@ Initial release of the extension
 
 - Allow deleting open scratches via command palette
 - Fix scratch open command
+
+## 0.1.3
+
+- Allow store scratches in a subfolders of scratch dir
+- Fix scratch deletion from command palette

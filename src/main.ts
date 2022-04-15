@@ -21,6 +21,10 @@ export function activate(context: vscode.ExtensionContext) {
       extension.newScratch
     ),
     vscode.commands.registerCommand(
+      "scratches.renameScratch",
+      extension.renameScratch
+    ),
+    vscode.commands.registerCommand(
       "scratches.deleteScratch",
       extension.deleteScratch
     )

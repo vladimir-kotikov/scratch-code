@@ -31,6 +31,11 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "scratches.renameScratch",
+        "title": "Rename",
+        "category": "Scratches"
+      },
+      {
         "command": "scratches.deleteScratch",
         "title": "Delete",
         "category": "Scratches",
@@ -64,6 +69,10 @@
           "command": "scratches.deleteScratch",
           "when": "view == scratches",
           "group": "inline"
+        },
+        {
+          "command": "scratches.renameScratch",
+          "when": "view == scratches"
         }
       ]
     }

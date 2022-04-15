@@ -3,6 +3,11 @@ import { Scratch, ScratchTreeProvider } from "./providers/tree";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { FileChangeType, Uri } from "vscode";
 
+function currentScratchUri(): Uri | undefined {
+  const maybeUri = vscode.window.activeTextEditor?.document.uri;
+  return maybeUri?.scheme === "scratch" ? maybeUri : undefined;
+}
+
 export class ScratchExtension {
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
@@ -33,19 +38,15 @@ export class ScratchExtension {
   };
 
   deleteScratch = async (scratch?: Scratch) => {
-    let uri = scratch?.uri;
-
-    if (uri === undefined) {
-      const maybeUri = vscode.window.activeTextEditor?.document.uri;
-      uri = maybeUri?.scheme === "scratch" ? maybeUri : undefined;
+    let uri = scratch?.uri ?? currentScratchUri();
+    if (!uri) {
+      return;
     }
 
-    if (uri) {
-      try {
-        await this.fileSystemProvider.delete(uri);
-      } catch (e) {
-        console.warn(`Error while removing ${uri}`, e);
-      }
+    try {
+      await this.fileSystemProvider.delete(uri);
+    } catch (e) {
+      console.warn(`Error while removing ${uri}`, e);
     }
   };
 }

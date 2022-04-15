@@ -18,6 +18,14 @@ const parentUriChanged = (uri: Uri): FileChangeEvent => {
   return { type: FileChangeType.Changed, uri: parentUri };
 };
 
+const isFile = (fileType: FileType) =>
+  fileType === FileType.File ||
+  fileType === (FileType.SymbolicLink | FileType.File);
+
+const isDirectory = (fileType: FileType) =>
+  fileType === FileType.Directory ||
+  fileType === (FileType.SymbolicLink | FileType.Directory);
+
 export class ScratchFileSystemProvider implements FileSystemProvider {
   private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
   onDidChangeFile: Event<FileChangeEvent[]> = this._onDidChangeFile.event;
@@ -44,6 +52,30 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
 
   readDirectory(uri: Uri): Thenable<[string, FileType][]> {
     return vscode.workspace.fs.readDirectory(this.translateUri(uri));
+  }
+
+  /**
+   * Just like `readDirectory` but traverses the whole directory subtree
+   * and returns nested files with their full paths as uris
+   * @param uri Directory to return files from
+   * @returns array of nested files uris
+   */
+  async readDirectoryRecursively(uri: Uri): Promise<Uri[]> {
+    const entries = await this.readDirectory(uri);
+
+    const readDirPromises = entries.map(([fileName, fileType]) => {
+      if (isFile(fileType)) {
+        return Promise.resolve([Uri.joinPath(uri, fileName)]);
+      }
+
+      if (isDirectory(fileType)) {
+        return this.readDirectoryRecursively(Uri.joinPath(uri, fileName));
+      }
+
+      return Promise.resolve([]);
+    });
+
+    return Promise.all(readDirPromises).then((allFiles) => allFiles.flat());
   }
 
   async createDirectory(uri: Uri): Promise<void> {
@@ -106,7 +138,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
   async rename(
     oldUri: Uri,
     newUri: Uri,
-    options: { readonly overwrite: boolean }
+    options?: { readonly overwrite: boolean }
   ): Promise<void> {
     await vscode.workspace.fs.rename(
       this.translateUri(oldUri),

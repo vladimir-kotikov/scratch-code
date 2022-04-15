@@ -9,7 +9,9 @@ import { ScratchFileSystemProvider } from "./fs";
 
 export class Scratch extends TreeItem {
   constructor(public readonly uri: Uri) {
-    super(uri, TreeItemCollapsibleState.None);
+    // trim leading slash
+    const label = uri.path.substring(1);
+    super(label, TreeItemCollapsibleState.None);
     this.command = {
       command: "vscode.open",
       title: "Open",
@@ -17,12 +19,11 @@ export class Scratch extends TreeItem {
     };
   }
 }
-
 export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly fileSystem: ScratchFileSystemProvider) {}
+  constructor(private readonly fileSystem: ScratchFileSystemProvider) { }
 
   getTreeItem(element: Scratch): TreeItem {
     return element;
@@ -37,10 +38,9 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
       return Promise.resolve([]);
     }
 
-    const files = await this.fileSystem.readDirectory(Uri.parse("scratch:/"));
-    return files.map(([filename, _]) => {
-      const fileUri = Uri.joinPath(Uri.parse("scratch:/"), filename);
-      return new Scratch(fileUri);
-    });
+    const files = await this.fileSystem.readDirectoryRecursively(
+      Uri.parse("scratch:/")
+    );
+    return files.map((uri) => new Scratch(uri));
   }
 }

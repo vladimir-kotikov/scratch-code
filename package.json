@@ -66,13 +66,14 @@
       ],
       "view/item/context": [
         {
-          "command": "scratches.deleteScratch",
+          "command": "scratches.renameScratch",
           "when": "view == scratches",
-          "group": "inline"
+          "group": "1_modification"
         },
         {
-          "command": "scratches.renameScratch",
-          "when": "view == scratches"
+          "command": "scratches.deleteScratch",
+          "when": "view == scratches",
+          "group": "2_deletion"
         }
       ]
     }

@@ -70,6 +70,7 @@
   },
   "scripts": {
     "vscode:prepublish": "yarn clean && yarn compile",
+    "vscode:publish": "vsce publish",
     "clean": "rimraf out",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",

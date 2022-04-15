@@ -23,7 +23,7 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly fileSystem: ScratchFileSystemProvider) { }
+  constructor(private readonly fileSystem: ScratchFileSystemProvider) {}
 
   getTreeItem(element: Scratch): TreeItem {
     return element;

@@ -38,3 +38,9 @@ Initial release of the extension
 
 - Allow store scratches in a subfolders of scratch dir
 - Fix scratch deletion from command palette
+
+### 0.1.4
+
+- Sort scratches alphabetically
+- Move delete command into context menu
+- Add rename functionality

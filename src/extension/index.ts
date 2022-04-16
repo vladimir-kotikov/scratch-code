@@ -78,6 +78,11 @@ export class ScratchExtension {
 
     try {
       await this.fileSystemProvider.delete(uri);
+      if (!scratch) {
+        await vscode.commands.executeCommand(
+          "workbench.action.closeActiveEditor"
+        );
+      }
     } catch (e) {
       console.warn(`Error while removing ${uri}`, e);
     }

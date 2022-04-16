@@ -27,7 +27,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "scratches.deleteScratch",
       extension.deleteScratch
-    )
+    ),
+    extension
   );
 }
 

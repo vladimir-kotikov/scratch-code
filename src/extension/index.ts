@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { FileChangeType, Uri } from "vscode";
+import { Disposable, RelativePattern, Uri } from "vscode";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
 
@@ -9,9 +9,10 @@ function currentScratchUri(): Uri | undefined {
   return maybeUri?.scheme === "scratch" ? maybeUri : undefined;
 }
 
-export class ScratchExtension {
+export class ScratchExtension implements Disposable {
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
+  private readonly watcher: vscode.FileSystemWatcher;
 
   constructor(private readonly scratchDir: Uri) {
     vscode.workspace.fs.createDirectory(scratchDir);
@@ -19,17 +20,16 @@ export class ScratchExtension {
     this.fileSystemProvider = new ScratchFileSystemProvider(this.scratchDir);
     this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
 
-    const isScratchesRootChanged = ({
-      type,
-      uri,
-    }: vscode.FileChangeEvent): boolean =>
-      type === FileChangeType.Changed && uri.path === "/";
+    this.watcher = vscode.workspace.createFileSystemWatcher(
+      new RelativePattern(this.scratchDir, "**/*")
+    );
+    this.watcher.onDidChange(() => this.treeDataProvider.reload());
+    this.watcher.onDidCreate(() => this.treeDataProvider.reload());
+    this.watcher.onDidDelete(() => this.treeDataProvider.reload());
+  }
 
-    this.fileSystemProvider.onDidChangeFile((events) => {
-      if (events.some(isScratchesRootChanged)) {
-        this.treeDataProvider.reload();
-      }
-    });
+  dispose() {
+    this.watcher.dispose();
   }
 
   newScratch = async () => {

@@ -25,3 +25,8 @@ Initial release of the extension
 - Sort scratches alphabetically
 - Move delete command into context menu
 - Add rename functionality
+
+## 0.1.5
+
+- Use system fs watcher to detect scratches updates
+- Close scratch editor on scratch deletion

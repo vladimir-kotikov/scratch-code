@@ -2,7 +2,7 @@
   "name": "scratch-code",
   "displayName": "scratch-code",
   "description": "Scratchpad for VSCode",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -81,6 +81,7 @@
   "scripts": {
     "vscode:prepublish": "yarn clean && yarn compile",
     "vscode:publish": "vsce publish",
+    "vscode:package": "vsce package",
     "clean": "rimraf out",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",

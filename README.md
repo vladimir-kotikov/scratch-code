@@ -49,3 +49,7 @@ Initial release of the extension
 
 - Use system fs watcher to detect scratches updates
 - Close scratch editor on scratch deletion
+
+### 0.1.6
+
+- Allow setting custom scratches directory

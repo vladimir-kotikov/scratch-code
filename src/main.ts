@@ -1,10 +1,31 @@
+import * as os from "os";
+import * as path from "path";
 import * as vscode from "vscode";
 import { ScratchExtension } from "./extension";
 
 const scratchUriScheme = "scratch";
 
 export function activate(context: vscode.ExtensionContext) {
-  const scratchDir = vscode.Uri.joinPath(context.globalStorageUri, "scratches");
+  let scratchDirSetting: string | undefined = vscode.workspace
+    .getConfiguration("scratches")
+    .get("scratchDirectory");
+
+  let scratchDir = vscode.Uri.joinPath(context.globalStorageUri, "scratches");
+  if (scratchDirSetting) {
+    if (scratchDirSetting.startsWith("~")) {
+      scratchDirSetting = scratchDirSetting.replace("~", os.homedir());
+    }
+    scratchDir = vscode.Uri.parse(path.normalize(scratchDirSetting));
+  }
+
+  vscode.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("scratches")) {
+      vscode.window.showWarningMessage(
+        "Scratches extension's configuration changed, reload window to apply new configuration."
+      );
+    }
+  });
+
   const extension = new ScratchExtension(scratchDir);
 
   context.subscriptions.push(

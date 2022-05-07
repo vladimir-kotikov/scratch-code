@@ -42,6 +42,15 @@
         "icon": "$(trash)"
       }
     ],
+    "configuration":{
+      "title": "Scratches",
+      "properties": {
+        "scratches.scratchDirectory": {
+          "type": "string",
+          "description": "Directory where scratch files are stored, defaults to extension's global storage directory"
+        }
+      }
+    },
     "views": {
       "explorer": [
         {
@@ -82,7 +91,7 @@
     "vscode:prepublish": "yarn clean && yarn compile",
     "vscode:publish": "vsce publish",
     "vscode:package": "vsce package",
-    "clean": "rimraf out",
+    "clean": "rimraf *.vsix out",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "yarn run compile && yarn run lint",

@@ -19,12 +19,10 @@ const parentUriChanged = (uri: Uri): FileChangeEvent => {
 };
 
 const isFile = (fileType: FileType) =>
-  fileType === FileType.File ||
-  fileType === (FileType.SymbolicLink | FileType.File);
+  fileType === FileType.File || fileType === (FileType.SymbolicLink | FileType.File);
 
 const isDirectory = (fileType: FileType) =>
-  fileType === FileType.Directory ||
-  fileType === (FileType.SymbolicLink | FileType.Directory);
+  fileType === FileType.Directory || fileType === (FileType.SymbolicLink | FileType.Directory);
 
 export class ScratchFileSystemProvider implements FileSystemProvider {
   private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
@@ -80,10 +78,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
 
   async createDirectory(uri: Uri): Promise<void> {
     await vscode.workspace.fs.createDirectory(this.translateUri(uri));
-    this._onDidChangeFile.fire([
-      parentUriChanged(uri),
-      { type: FileChangeType.Created, uri },
-    ]);
+    this._onDidChangeFile.fire([parentUriChanged(uri), { type: FileChangeType.Created, uri }]);
   }
 
   readFile(uri: Uri): Thenable<Uint8Array> {
@@ -108,8 +103,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
     try {
       const stat = await this.stat(uri);
       const isFile =
-        stat.type === FileType.File ||
-        stat.type === (FileType.File | FileType.SymbolicLink);
+        stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
 
       if (isFile) {
         events.push({ type: FileChangeType.Changed, uri });
@@ -124,27 +118,13 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
     this._onDidChangeFile.fire(events);
   }
 
-  async delete(
-    uri: Uri,
-    options?: { readonly recursive: boolean }
-  ): Promise<void> {
+  async delete(uri: Uri, options?: { readonly recursive: boolean }): Promise<void> {
     await vscode.workspace.fs.delete(this.translateUri(uri), options);
-    this._onDidChangeFile.fire([
-      parentUriChanged(uri),
-      { type: FileChangeType.Deleted, uri },
-    ]);
+    this._onDidChangeFile.fire([parentUriChanged(uri), { type: FileChangeType.Deleted, uri }]);
   }
 
-  async rename(
-    oldUri: Uri,
-    newUri: Uri,
-    options?: { readonly overwrite: boolean }
-  ): Promise<void> {
-    await vscode.workspace.fs.rename(
-      this.translateUri(oldUri),
-      this.translateUri(newUri),
-      options
-    );
+  async rename(oldUri: Uri, newUri: Uri, options?: { readonly overwrite: boolean }): Promise<void> {
+    await vscode.workspace.fs.rename(this.translateUri(oldUri), this.translateUri(newUri), options);
     this._onDidChangeFile.fire([
       parentUriChanged(oldUri),
       { type: FileChangeType.Deleted, uri: oldUri },

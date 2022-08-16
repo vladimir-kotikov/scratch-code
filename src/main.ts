@@ -29,30 +29,12 @@ export function activate(context: vscode.ExtensionContext) {
   const extension = new ScratchExtension(scratchDir);
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider(
-      "scratches",
-      extension.treeDataProvider
-    ),
-    vscode.workspace.registerFileSystemProvider(
-      scratchUriScheme,
-      extension.fileSystemProvider
-    ),
-    vscode.commands.registerCommand(
-      "scratches.newScratch",
-      extension.newScratch
-    ),
-    vscode.commands.registerCommand(
-      "scratches.renameScratch",
-      extension.renameScratch
-    ),
-    vscode.commands.registerCommand(
-      "scratches.deleteScratch",
-      extension.deleteScratch
-    ),
-    vscode.commands.registerCommand(
-      "scratches.openDirectory",
-      extension.openDirectory
-    ),
+    vscode.window.registerTreeDataProvider("scratches", extension.treeDataProvider),
+    vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
+    vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
+    vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
+    vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
+    vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
     extension
   );
 }

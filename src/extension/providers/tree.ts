@@ -1,10 +1,4 @@
-import {
-  EventEmitter,
-  TreeDataProvider,
-  TreeItem,
-  TreeItemCollapsibleState,
-  Uri,
-} from "vscode";
+import { EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from "vscode";
 import { ScratchFileSystemProvider } from "./fs";
 
 export class Scratch extends TreeItem {
@@ -38,12 +32,8 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
       return Promise.resolve([]);
     }
 
-    const files = await this.fileSystem.readDirectoryRecursively(
-      Uri.parse("scratch:/")
-    );
+    const files = await this.fileSystem.readDirectoryRecursively(Uri.parse("scratch:/"));
 
-    return files
-      .sort((a, b) => a.path.localeCompare(b.path))
-      .map((uri) => new Scratch(uri));
+    return files.sort((a, b) => a.path.localeCompare(b.path)).map((uri) => new Scratch(uri));
   }
 }

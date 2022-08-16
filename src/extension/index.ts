@@ -64,9 +64,7 @@ export class ScratchExtension implements Disposable {
     // If there was no scratch then we just renamed a scratch opened in the
     // current editor so close it and reopen with the new name
     if (!scratch) {
-      await vscode.commands.executeCommand(
-        "workbench.action.closeActiveEditor"
-      );
+      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
       await vscode.commands.executeCommand("vscode.open", newUri);
     }
   };
@@ -80,9 +78,7 @@ export class ScratchExtension implements Disposable {
     try {
       await this.fileSystemProvider.delete(uri);
       if (!scratch) {
-        await vscode.commands.executeCommand(
-          "workbench.action.closeActiveEditor"
-        );
+        await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
       }
     } catch (e) {
       console.warn(`Error while removing ${uri}`, e);

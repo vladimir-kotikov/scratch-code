@@ -1,0 +1,5 @@
+# Set up git to use this file by running
+#     git config blame.ignoreRevsFile .blameignore
+
+# Set line width to 100
+e6fc2db

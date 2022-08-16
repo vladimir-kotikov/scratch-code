@@ -31,6 +31,11 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "scratches.newScratchFromBuffer",
+        "title": "New from current buffer",
+        "category": "Scratches"
+      },
+      {
         "command": "scratches.renameScratch",
         "title": "Rename",
         "category": "Scratches"

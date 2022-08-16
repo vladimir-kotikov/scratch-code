@@ -32,6 +32,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider("scratches", extension.treeDataProvider),
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
+    vscode.commands.registerCommand(
+      "scratches.newScratchFromBuffer",
+      extension.newScratchFromBuffer
+    ),
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),

@@ -33,10 +33,20 @@ export class ScratchExtension implements Disposable {
     this.watcher.dispose();
   }
 
-  newScratch = async () => {
+  newScratch = async (content?: string) => {
     const uri = Uri.parse(`scratch:/scratch${new Date().getTime()}`);
-    await this.fileSystemProvider.writeFile(uri);
+    await this.fileSystemProvider.writeFile(uri, content);
     await vscode.commands.executeCommand("vscode.open", uri);
+  };
+
+  newScratchFromBuffer = async () => {
+    const currentEditor = vscode.window.activeTextEditor;
+    if (!currentEditor) {
+      vscode.window.setStatusBarMessage("No document is open", 10 * 1000);
+      return;
+    }
+
+    return await this.newScratch(currentEditor.document.getText());
   };
 
   renameScratch = async (scratch?: Scratch) => {

@@ -49,6 +49,10 @@ export function activate(context: vscode.ExtensionContext) {
       "scratches.deleteScratch",
       extension.deleteScratch
     ),
+    vscode.commands.registerCommand(
+      "scratches.openDirectory",
+      extension.openDirectory
+    ),
     extension
   );
 }

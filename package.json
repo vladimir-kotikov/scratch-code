@@ -40,6 +40,12 @@
         "title": "Delete",
         "category": "Scratches",
         "icon": "$(trash)"
+      },
+      {
+        "command": "scratches.openDirectory",
+        "title": "Open directory",
+        "category": "Scratches",
+        "icon": "$(folder-opened)"
       }
     ],
     "configuration":{
@@ -67,6 +73,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "scratches.openDirectory",
+          "when": "view == scratches",
+          "group": "navigation"
+        },
         {
           "command": "scratches.newScratch",
           "when": "view == scratches",
@@ -103,6 +114,7 @@
     "@types/glob": "^7.2.0",
     "@types/mocha": "^9.1.0",
     "@types/node": "14.x",
+    "@types/opener": "^1.4.0",
     "@types/vscode": "^1.66.0",
     "@typescript-eslint/eslint-plugin": "^5.16.0",
     "@typescript-eslint/parser": "^5.16.0",
@@ -114,5 +126,8 @@
     "rimraf": "^3.0.2",
     "typescript": "^4.5.5",
     "vsce": "^2.7.0"
+  },
+  "dependencies": {
+    "opener": "^1.5.2"
   }
 }

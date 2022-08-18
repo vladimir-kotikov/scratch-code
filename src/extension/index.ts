@@ -1,9 +1,24 @@
+import langMap from "lang-map";
 import open from "opener";
 import * as path from "path";
 import * as vscode from "vscode";
-import { Disposable, RelativePattern, Uri } from "vscode";
+import { Disposable, FileSystemError, RelativePattern, Uri } from "vscode";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
+
+const CUSTOM_EXTENSIONS_MAP: { [langId: string]: string } = {
+  makefile: "",
+  ignore: "",
+};
+
+function guessExtension(languageId: string): string {
+  let ext = CUSTOM_EXTENSIONS_MAP[languageId] ?? langMap.extensions(languageId)[0];
+  if (!ext.startsWith(".") && ext !== "") {
+    ext = `.${ext}`;
+  }
+
+  return ext;
+}
 
 function currentScratchUri(): Uri | undefined {
   const maybeUri = vscode.window.activeTextEditor?.document.uri;
@@ -33,20 +48,58 @@ export class ScratchExtension implements Disposable {
     this.watcher.dispose();
   }
 
-  newScratch = async (content?: string) => {
-    const uri = Uri.parse(`scratch:/scratch${new Date().getTime()}`);
-    await this.fileSystemProvider.writeFile(uri, content);
+  newScratch = async (content?: string, languageId?: string) => {
+    const suggestedFilename = `scratch${new Date().getTime()}`;
+    const suggestedExtension = languageId ? guessExtension(languageId) : ".txt";
+
+    const filename = await vscode.window.showInputBox({
+      ignoreFocusOut: true,
+      title: "File name for the new scratch",
+      value: `${suggestedFilename}${suggestedExtension}`,
+      valueSelection: [0, suggestedFilename.length],
+    });
+
+    if (!filename) {
+      return;
+    }
+
+    const uri = Uri.parse(`scratch:/${filename}`);
+
+    let exists = true;
+    try {
+      await this.fileSystemProvider.stat(uri);
+    } catch (e) {
+      if (e instanceof FileSystemError && e.code === "FileNotFound") {
+        exists = false;
+      } else {
+        throw e;
+      }
+    }
+
+    if (exists) {
+      const choice = await vscode.window.showInformationMessage(
+        `File ${filename} already exists, overwrite?`,
+        { modal: true },
+        "Yes"
+      );
+
+      if (choice !== "Yes") {
+        return;
+      }
+    }
+
+    await this.fileSystemProvider.writeFile(uri, content, { create: true, overwrite: true });
     await vscode.commands.executeCommand("vscode.open", uri);
   };
 
   newScratchFromBuffer = async () => {
-    const currentEditor = vscode.window.activeTextEditor;
-    if (!currentEditor) {
+    const currentDocument = vscode.window.activeTextEditor?.document;
+    if (!currentDocument) {
       vscode.window.setStatusBarMessage("No document is open", 10 * 1000);
       return;
     }
 
-    return await this.newScratch(currentEditor.document.getText());
+    return await this.newScratch(currentDocument.getText(), currentDocument.languageId);
   };
 
   renameScratch = async (scratch?: Scratch) => {

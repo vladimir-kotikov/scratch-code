@@ -34,3 +34,10 @@ Initial release of the extension
 ## 0.1.6
 
 - Allow setting custom scratches directory
+
+## 0.1.7
+
+- Ignore Mac OS junk files in scratches dir
+- Ask for filename when creating new scratch
+- Command to create scratch from current document
+- Add command to open scratches directory in file browser

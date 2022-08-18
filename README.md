@@ -1,6 +1,6 @@
 # scratch-code
 
-[![Build](https://github.com/vladimir-kotikov/scratch-code/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/vladimir-kotikov/scratch-code/actions/workflows/build.yml) 
+[![Build](https://github.com/vladimir-kotikov/scratch-code/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/vladimir-kotikov/scratch-code/actions/workflows/build.yml)
 [![VS Code Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/vlkoti.scratch-code?label=VS%20Code%20%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=vlkoti.scratch-code)
 
 Simple extension to maintain a list of scrathes similar to JetBrains IntelliJ scrathes feature. Scratches are simply a text documents, persisted across all workspaces, that are available through a dedicated view panel in explorer view.
@@ -54,3 +54,10 @@ Initial release of the extension
 ### 0.1.6
 
 - Allow setting custom scratches directory
+
+### 0.1.7
+
+- Ignore Mac OS junk files in scratches dir
+- Ask for filename when creating new scratch
+- Command to create scratch from current document
+- Add command to open scratches directory in file browser

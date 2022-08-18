@@ -1,6 +1,8 @@
 import { EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from "vscode";
 import { ScratchFileSystemProvider } from "./fs";
 
+const IGNORED_FILES = new Set([".DS_Store"]);
+
 export class Scratch extends TreeItem {
   constructor(public readonly uri: Uri) {
     // trim leading slash
@@ -34,6 +36,9 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
 
     const files = await this.fileSystem.readDirectoryRecursively(Uri.parse("scratch:/"));
 
-    return files.sort((a, b) => a.path.localeCompare(b.path)).map((uri) => new Scratch(uri));
+    return files
+      .filter((uri) => !IGNORED_FILES.has(uri.path))
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map((uri) => new Scratch(uri));
   }
 }

@@ -133,6 +133,7 @@
     "vsce": "^2.7.0"
   },
   "dependencies": {
+    "lang-map": "^0.4.0",
     "opener": "^1.5.2"
   },
   "prettier": {

@@ -41,3 +41,7 @@ Initial release of the extension
 - Ask for filename when creating new scratch
 - Command to create scratch from current document
 - Add command to open scratches directory in file browser
+
+## 0.1.8
+
+- Fix extension not starting due to missing dependency

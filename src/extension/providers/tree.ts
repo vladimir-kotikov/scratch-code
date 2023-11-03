@@ -8,6 +8,7 @@ export class Scratch extends TreeItem {
     // trim leading slash
     const label = uri.path.substring(1);
     super(label, TreeItemCollapsibleState.None);
+    this.resourceUri = uri;
     this.command = {
       command: "vscode.open",
       title: "Open",

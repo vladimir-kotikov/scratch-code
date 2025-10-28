@@ -65,3 +65,22 @@ Initial release of the extension
 ### 0.1.8
 
 - Fix extension not starting due to missing dependency
+
+
+## Future plans and fixes
+
+- I make some text file and dump there some temporary notes, urls, config snippets, etc.
+  - TODO: I want to save it for later and remove from the open tabs, ideally with a single shortcut.
+  - TODO: The newly created scratchpad should replace the current tab when created from an untitled tab.
+  - TODO: Autofill name based on the first lines and/or use the Copilot to suggest a name.
+
+- I want to easily find some past scratchpads, ideally with fuzzy search.
+
+  - TODO: Have a quicksearch for scratches, sorted by recency, with access with a hotkey.
+  - TODO: Have a full textsearch across all scratches, ideally with fuzzy matching and ranking by recency.
+  - TODO: Have an archive of old scratches, excluded from search and listing by default, but accessible when needed.
+
+Bugs
+
+- FIXME: Breadcrumbs for scratches not showing the root "Scratches" folder.
+- FIXME: No delete button in the scratchpad explorer view

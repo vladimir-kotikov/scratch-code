@@ -37,7 +37,7 @@ export class ScratchExtension implements Disposable {
     this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
 
     this.watcher = vscode.workspace.createFileSystemWatcher(
-      new RelativePattern(this.scratchDir, "**/*")
+      new RelativePattern(this.scratchDir, "**/*"),
     );
     this.watcher.onDidChange(() => this.treeDataProvider.reload());
     this.watcher.onDidCreate(() => this.treeDataProvider.reload());
@@ -80,7 +80,7 @@ export class ScratchExtension implements Disposable {
       const choice = await vscode.window.showInformationMessage(
         `File ${filename} already exists, overwrite?`,
         { modal: true },
-        "Yes"
+        "Yes",
       );
 
       if (choice !== "Yes") {
@@ -133,7 +133,7 @@ export class ScratchExtension implements Disposable {
   };
 
   deleteScratch = async (scratch?: Scratch) => {
-    let uri = scratch?.uri ?? currentScratchUri();
+    const uri = scratch?.uri ?? currentScratchUri();
     if (!uri) {
       return;
     }

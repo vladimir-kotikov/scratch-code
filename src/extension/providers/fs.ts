@@ -39,7 +39,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
     _options: {
       readonly recursive: boolean;
       readonly excludes: readonly string[];
-    }
+    },
   ): Disposable {
     return new Disposable(() => {});
   }
@@ -88,7 +88,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
   async writeFile(
     uri: Uri,
     content?: Uint8Array | string,
-    _options?: { readonly create: boolean; readonly overwrite: boolean }
+    _options?: { readonly create: boolean; readonly overwrite: boolean },
   ): Promise<void> {
     if (content === undefined) {
       content = new Uint8Array(0);

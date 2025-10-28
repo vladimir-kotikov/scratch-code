@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.workspace.onDidChangeConfiguration((e) => {
     if (e.affectsConfiguration("scratches")) {
       vscode.window.showWarningMessage(
-        "Scratches extension's configuration changed, reload window to apply new configuration."
+        "Scratches extension's configuration changed, reload window to apply new configuration.",
       );
     }
   });
@@ -34,12 +34,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
     vscode.commands.registerCommand(
       "scratches.newScratchFromBuffer",
-      extension.newScratchFromBuffer
+      extension.newScratchFromBuffer,
     ),
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
-    extension
+    extension,
   );
 }
 

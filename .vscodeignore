@@ -1,9 +1,10 @@
+node_modules/
 .vscode/**
+.github/**
 .vscode-test/**
+.gitignore
 src/**
 out/test/**
-.gitignore
-.yarnrc
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/.eslintrc.json

@@ -2,10 +2,10 @@
   "compilerOptions": {
     "module": "commonjs",
     "esModuleInterop": true,
-    "target": "ES2020",
+    "target": "esnext",
     "outDir": "out",
     "lib": [
-      "ES2020"
+      "ESNext"
     ],
     "sourceMap": true,
     "rootDir": "src",
@@ -13,5 +13,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUnusedParameters": true
-  }
+  },
+  "exclude": [
+    "eslint.config.mts"
+  ]
 }

@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import sinon from "sinon";
-import { inferFilename } from "../../extension/index";
+import { inferFilename } from "../../extension";
 
 import type { TextDocument, Uri } from "vscode";
 

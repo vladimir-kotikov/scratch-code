@@ -66,13 +66,12 @@ Initial release of the extension
 
 - Fix extension not starting due to missing dependency
 
+### 0.1.9
+
+- Better suggestions for new scratch filenames based on current document
+- Scratches replace untitled buffers they are created from
 
 ## Future plans and fixes
-
-- I make some text file and dump there some temporary notes, urls, config snippets, etc.
-  - TODO: I want to save it for later and remove from the open tabs, ideally with a single shortcut.
-  - TODO: The newly created scratchpad should replace the current tab when created from an untitled tab.
-  - TODO: Autofill name based on the first lines and/or use the Copilot to suggest a name.
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.
 

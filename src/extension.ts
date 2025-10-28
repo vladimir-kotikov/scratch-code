@@ -45,6 +45,20 @@ const getFirstChars = (n: number, doc: vscode.TextDocument): string => {
   return result.slice(0, n);
 };
 
+const selectAll = (editor: vscode.TextEditor): void => {
+  const doc = editor?.document;
+  if (!doc) {
+    return;
+  }
+
+  editor.selection = new vscode.Selection(
+    0,
+    0,
+    doc.lineCount,
+    doc.lineAt(doc.lineCount - 1).text.length,
+  );
+};
+
 const inferExtension = (doc: vscode.TextDocument): string =>
   doc.isUntitled
     ? (extOverrides[doc.languageId] ?? langMap.extensions(doc.languageId)[0])
@@ -128,11 +142,12 @@ export class ScratchExtension implements Disposable {
     }
 
     await this.fileSystemProvider.writeFile(uri, content, { create: true, overwrite: true });
-    await vscode.commands.executeCommand("vscode.open", uri);
+    return uri;
   };
 
   newScratchFromBuffer = async () => {
-    const doc = vscode.window.activeTextEditor?.document;
+    const editor = vscode.window.activeTextEditor;
+    const doc = editor?.document;
     if (!doc) {
       vscode.window.setStatusBarMessage("No document is open", 10 * 1000);
       return;
@@ -150,7 +165,23 @@ export class ScratchExtension implements Disposable {
     if (!filename) {
       return;
     }
-    return await this.newScratch(filename, doc.getText() ?? "");
+
+    const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
+    if (doc.isUntitled) {
+      return await editor
+        .edit((editBuilder) => {
+          selectAll(editor);
+          editBuilder.delete(editor.selection);
+        })
+        .then(() =>
+          Promise.all([
+            vscode.commands.executeCommand("workbench.action.closeActiveEditor"),
+            vscode.commands.executeCommand("vscode.open", scratchUri),
+          ]),
+        );
+    }
+
+    await vscode.commands.executeCommand("vscode.open", scratchUri);
   };
 
   renameScratch = async (scratch?: Scratch) => {

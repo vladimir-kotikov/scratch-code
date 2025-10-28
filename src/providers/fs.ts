@@ -1,17 +1,17 @@
 import * as path from "path";
-import {
-  FileChangeType,
-  FileSystemError,
-  FileChangeEvent,
-  Uri,
-  FileSystemProvider,
-  EventEmitter,
-  Event,
-  Disposable,
-  FileStat,
-  FileType,
-} from "vscode";
 import * as vscode from "vscode";
+import {
+  Disposable,
+  Event,
+  EventEmitter,
+  FileChangeEvent,
+  FileChangeType,
+  FileStat,
+  FileSystemError,
+  FileSystemProvider,
+  FileType,
+  Uri,
+} from "vscode";
 
 const parentUriChanged = (uri: Uri): FileChangeEvent => {
   const parentUri = uri.with({ path: path.posix.dirname(uri.path) });

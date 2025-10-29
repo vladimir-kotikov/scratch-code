@@ -12,17 +12,15 @@ import {
   FileType,
   Uri,
 } from "vscode";
+import { flat, map } from "../fu";
+
+const SCHEME = "scratch";
+const ROOT = Uri.parse(`${SCHEME}:/`);
 
 const parentUriChanged = (uri: Uri): FileChangeEvent => {
   const parentUri = uri.with({ path: path.posix.dirname(uri.path) });
   return { type: FileChangeType.Changed, uri: parentUri };
 };
-
-const isFile = (fileType: FileType) =>
-  fileType === FileType.File || fileType === (FileType.SymbolicLink | FileType.File);
-
-const isDirectory = (fileType: FileType) =>
-  fileType === FileType.Directory || fileType === (FileType.SymbolicLink | FileType.Directory);
 
 export class ScratchFileSystemProvider implements FileSystemProvider {
   private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
@@ -30,21 +28,21 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
 
   constructor(private readonly scratchDir: Uri) {}
 
-  private translateUri(uri: Uri): Uri {
+  private translateUri = (uri: Uri): Uri => {
+    if (uri.scheme !== SCHEME) {
+      throw new Error(`Invalid URI scheme: ${uri.scheme}`);
+    }
     return Uri.joinPath(this.scratchDir, uri.path);
-  }
+  };
 
   watch(): Disposable {
     return new Disposable(() => {});
   }
 
-  stat(uri: Uri): Thenable<FileStat> {
-    return vscode.workspace.fs.stat(this.translateUri(uri));
-  }
+  stat = (uri: Uri): Thenable<FileStat> => vscode.workspace.fs.stat(this.translateUri(uri));
 
-  readDirectory(uri: Uri): Thenable<[string, FileType][]> {
-    return vscode.workspace.fs.readDirectory(this.translateUri(uri));
-  }
+  readDirectory = (uri: Uri): Thenable<[string, FileType][]> =>
+    vscode.workspace.fs.readDirectory(this.translateUri(uri));
 
   /**
    * Just like `readDirectory` but traverses the whole directory subtree
@@ -52,23 +50,19 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
    * @param uri Directory to return files from
    * @returns array of nested files uris
    */
-  async readDirectoryRecursively(uri: Uri): Promise<Uri[]> {
-    const entries = await this.readDirectory(uri);
-
-    const readDirPromises = entries.map(([fileName, fileType]) => {
-      if (isFile(fileType)) {
-        return Promise.resolve([Uri.joinPath(uri, fileName)]);
-      }
-
-      if (isDirectory(fileType)) {
-        return this.readDirectoryRecursively(Uri.joinPath(uri, fileName));
-      }
-
-      return Promise.resolve([]);
-    });
-
-    return Promise.all(readDirPromises).then((allFiles) => allFiles.flat());
-  }
+  readTree = (uri: Uri = ROOT): PromiseLike<Uri[]> =>
+    this.readDirectory(uri)
+      .then(
+        map(([fileName, fileType]) => {
+          return fileType === FileType.Unknown
+            ? []
+            : fileType === FileType.Directory
+              ? this.readTree(Uri.joinPath(uri, fileName))
+              : [Uri.joinPath(uri, fileName)];
+        }),
+      )
+      .then((items) => Promise.all(items))
+      .then(flat);
 
   async createDirectory(uri: Uri): Promise<void> {
     await vscode.workspace.fs.createDirectory(this.translateUri(uri));

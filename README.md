@@ -74,8 +74,6 @@ Initial release of the extension
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.
-
-  - TODO: Have a quicksearch for scratches, sorted by recency, with access with a hotkey.
   - TODO: Have a full textsearch across all scratches, ideally with fuzzy matching and ranking by recency.
   - TODO: Have an archive of old scratches, excluded from search and listing by default, but accessible when needed.
 

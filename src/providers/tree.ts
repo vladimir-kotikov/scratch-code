@@ -35,7 +35,7 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
       return Promise.resolve([]);
     }
 
-    const files = await this.fileSystem.readDirectoryRecursively(Uri.parse("scratch:/"));
+    const files = await this.fileSystem.readTree();
 
     return files
       .filter((uri) => !IGNORED_FILES.has(uri.path))

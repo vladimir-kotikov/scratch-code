@@ -2,6 +2,7 @@ import langMap from "lang-map";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Disposable, FileSystemError, RelativePattern, Uri } from "vscode";
+import { map, prop, sort, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
 
@@ -185,27 +186,29 @@ export class ScratchExtension implements Disposable {
 
   quickOpen = async () => {
     const allScratchesPromise = this.fileSystemProvider
-      .readDirectory(vscode.Uri.parse("/"))
+      .readTree()
       .then((entries) =>
-        entries.map<vscode.QuickPickItem>(([name]) => ({
-          label: name,
-          description: name,
+        Promise.all(entries.map(this.fileSystemProvider.stat))
+          .then(map(prop("mtime")))
+          .then(zip(entries))
+          .then(sort<[vscode.Uri, number]>((a, b) => b[1] - a[1]))
+          .then(map(prop(0))),
+      )
+      .then(
+        map((uri) => ({
+          label: uri.path.substring(1),
+          description: uri.toString(),
           iconPath: vscode.ThemeIcon.File,
+          uri: uri,
         })),
       );
 
     return vscode.window
       .showQuickPick(allScratchesPromise, {
         placeHolder: "Search scratches...",
+        matchOnDescription: true,
       })
-      .then(
-        (picked) =>
-          picked &&
-          vscode.commands.executeCommand(
-            "vscode.open",
-            vscode.Uri.parse("scratch:/" + picked.label),
-          ),
-      );
+      .then((picked) => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
   };
 
   renameScratch = async (scratch?: Scratch) => {

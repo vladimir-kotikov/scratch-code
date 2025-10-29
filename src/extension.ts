@@ -1,5 +1,4 @@
 import langMap from "lang-map";
-import open from "opener";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Disposable, FileSystemError, RelativePattern, Uri } from "vscode";
@@ -230,7 +229,5 @@ export class ScratchExtension implements Disposable {
     }
   };
 
-  openDirectory = () => {
-    open(this.scratchDir.fsPath);
-  };
+  openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
 }

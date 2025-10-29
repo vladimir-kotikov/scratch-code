@@ -117,7 +117,6 @@
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "@types/opener": "^1.4.3",
     "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.105.0",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
@@ -135,8 +134,7 @@
   },
   "dependencies": {
     "@vscode/vsce": "^3.6.2",
-    "lang-map": "^0.4.0",
-    "opener": "^1.5.2"
+    "lang-map": "^0.4.0"
   },
   "prettier": {
     "printWidth": 100

@@ -183,6 +183,31 @@ export class ScratchExtension implements Disposable {
     return vscode.commands.executeCommand("vscode.open", scratchUri);
   };
 
+  quickOpen = async () => {
+    const allScratchesPromise = this.fileSystemProvider
+      .readDirectory(vscode.Uri.parse("/"))
+      .then((entries) =>
+        entries.map<vscode.QuickPickItem>(([name]) => ({
+          label: name,
+          description: name,
+          iconPath: vscode.ThemeIcon.File,
+        })),
+      );
+
+    return vscode.window
+      .showQuickPick(allScratchesPromise, {
+        placeHolder: "Search scratches...",
+      })
+      .then(
+        (picked) =>
+          picked &&
+          vscode.commands.executeCommand(
+            "vscode.open",
+            vscode.Uri.parse("scratch:/" + picked.label),
+          ),
+      );
+  };
+
   renameScratch = async (scratch?: Scratch) => {
     const uri = scratch?.uri ?? currentScratchUri();
     if (!uri) {

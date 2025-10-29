@@ -36,6 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
       "scratches.newScratchFromBuffer",
       extension.newScratchFromBuffer,
     ),
+    vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),

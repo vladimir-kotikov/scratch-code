@@ -28,6 +28,11 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "scratches.quickOpen",
+        "title": "Quick Open",
+        "category": "Scratches"
+      },
+      {
         "command": "scratches.newScratchFromBuffer",
         "title": "New from current buffer",
         "category": "Scratches"

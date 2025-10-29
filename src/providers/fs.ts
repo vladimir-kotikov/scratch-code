@@ -34,13 +34,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
     return Uri.joinPath(this.scratchDir, uri.path);
   }
 
-  watch(
-    _uri: Uri,
-    _options: {
-      readonly recursive: boolean;
-      readonly excludes: readonly string[];
-    },
-  ): Disposable {
+  watch(): Disposable {
     return new Disposable(() => {});
   }
 
@@ -85,11 +79,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider {
     return vscode.workspace.fs.readFile(this.translateUri(uri));
   }
 
-  async writeFile(
-    uri: Uri,
-    content?: Uint8Array | string,
-    _options?: { readonly create: boolean; readonly overwrite: boolean },
-  ): Promise<void> {
+  async writeFile(uri: Uri, content?: Uint8Array | string): Promise<void> {
     if (content === undefined) {
       content = new Uint8Array(0);
     }

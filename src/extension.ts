@@ -145,7 +145,7 @@ export class ScratchExtension implements Disposable {
     return uri;
   };
 
-  newScratchFromBuffer = async () => {
+  newScratchFromBuffer = async (): Promise<unknown> => {
     const editor = vscode.window.activeTextEditor;
     const doc = editor?.document;
     if (!doc) {
@@ -168,7 +168,7 @@ export class ScratchExtension implements Disposable {
 
     const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
     if (doc.isUntitled) {
-      return await editor
+      return editor
         .edit((editBuilder) => {
           selectAll(editor);
           editBuilder.delete(editor.selection);
@@ -181,7 +181,7 @@ export class ScratchExtension implements Disposable {
         );
     }
 
-    await vscode.commands.executeCommand("vscode.open", scratchUri);
+    return vscode.commands.executeCommand("vscode.open", scratchUri);
   };
 
   renameScratch = async (scratch?: Scratch) => {

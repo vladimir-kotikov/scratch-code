@@ -1,10 +1,13 @@
 import langMap from "lang-map";
 import * as path from "path";
+import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
-import { Disposable, FileSystemError, RelativePattern, Uri } from "vscode";
+import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
 import { map, prop, sort, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
+import { ScratchSearchProvider } from "./providers/search";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
+import { DisposableContainer, readTree } from "./util";
 
 const extOverrides: Record<string, string> = {
   makefile: "",
@@ -93,28 +96,66 @@ function currentScratchUri(): Uri | undefined {
   return maybeUri?.scheme === "scratch" ? maybeUri : undefined;
 }
 
-export class ScratchExtension implements Disposable {
+// TODO: Check and handle corner cases:
+// - delay updating the index in watcher events until the index is loaded/populated
+// - check the index validity when loading from disk and prune missing entries
+
+export class ScratchExtension extends DisposableContainer implements Disposable {
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
-  private readonly watcher: vscode.FileSystemWatcher;
 
-  constructor(private readonly scratchDir: Uri) {
-    vscode.workspace.fs.createDirectory(scratchDir);
+  private searchWidget: vscode.QuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>;
+  private index: ScratchSearchProvider;
+  private searchIndexTimer: NodeJS.Timeout | undefined;
 
-    this.fileSystemProvider = new ScratchFileSystemProvider(this.scratchDir);
+  constructor(
+    private readonly scratchDir: Uri,
+    private readonly storageDir: vscode.Uri,
+  ) {
+    super();
+
+    [scratchDir, storageDir].forEach(vscode.workspace.fs.createDirectory);
+
+    this.fileSystemProvider = this.disposeLater(new ScratchFileSystemProvider(this.scratchDir));
     this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
-
-    this.watcher = vscode.workspace.createFileSystemWatcher(
-      new RelativePattern(this.scratchDir, "**/*"),
+    this.index = new ScratchSearchProvider(
+      this.fileSystemProvider,
+      ScratchFileSystemProvider.ROOT,
+      Uri.joinPath(this.storageDir, "searchIndex.json"),
     );
-    this.watcher.onDidChange(() => this.treeDataProvider.reload());
-    this.watcher.onDidCreate(() => this.treeDataProvider.reload());
-    this.watcher.onDidDelete(() => this.treeDataProvider.reload());
+
+    this.searchWidget = this.disposeLater(
+      vscode.window.createQuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>(),
+    );
+    this.searchWidget.placeholder = "Search scratches...";
+    this.searchWidget.busy = true;
+
+    this.index.loadIndex().then(() => {
+      this.searchWidget.busy = false;
+      this.searchIndexTimer = setInterval(this.index.saveIndex, 15 * 60 * 1000);
+    });
+
+    this.disposeLater(
+      this.fileSystemProvider.watch(ScratchFileSystemProvider.ROOT, {
+        recursive: true,
+      }),
+    );
+
+    this.disposeLater(this.fileSystemProvider.onDidChangeFile(map(this.updateIndexOnFileChange)));
   }
 
   dispose() {
-    this.watcher.dispose();
+    this.index.saveIndex();
+    clearInterval(this.searchIndexTimer);
+    super.dispose();
   }
+
+  private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
+    match(change)
+      .with({ type: FileChangeType.Deleted, uri: P.select() }, this.index.discardFile)
+      .with({ type: FileChangeType.Created, uri: P.select() }, this.index.addFile)
+      .with({ type: FileChangeType.Changed, uri: P.select() }, this.index.replaceFile)
+      .otherwise((c) => console.error("Unhandled file change event", c));
 
   newScratch = async (filename: string, content: string) => {
     const uri = Uri.parse(`scratch:/${filename}`);
@@ -185,8 +226,7 @@ export class ScratchExtension implements Disposable {
   };
 
   quickOpen = async () => {
-    const allScratchesPromise = this.fileSystemProvider
-      .readTree()
+    const allScratchesPromise = readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
       .then((entries) =>
         Promise.all(entries.map(this.fileSystemProvider.stat))
           .then(map(prop("mtime")))
@@ -209,6 +249,25 @@ export class ScratchExtension implements Disposable {
         matchOnDescription: true,
       })
       .then((picked) => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
+  };
+
+  quickSearch = async () => {
+    const searchChangedSubscription = this.searchWidget.onDidChangeValue(async (value) => {
+      this.searchWidget.items = this.index.search(value).map((result) => ({
+        label: result.id.path.substring(1),
+        description: "",
+        uri: result.id,
+      }));
+    });
+
+    this.searchWidget.onDidAccept(async () => {
+      searchChangedSubscription.dispose();
+      this.searchWidget.hide();
+      this.searchWidget.items = [];
+      vscode.commands.executeCommand("vscode.open", this.searchWidget.selectedItems[0].uri);
+    });
+
+    this.searchWidget.show();
   };
 
   renameScratch = async (scratch?: Scratch) => {

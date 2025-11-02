@@ -1,4 +1,5 @@
 import { EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from "vscode";
+import { readTree } from "../util";
 import { ScratchFileSystemProvider } from "./fs";
 
 const IGNORED_FILES = new Set([".DS_Store"]);
@@ -20,7 +21,9 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly fileSystem: ScratchFileSystemProvider) {}
+  constructor(private readonly fileSystem: ScratchFileSystemProvider) {
+    this.fileSystem.onDidChangeFile(() => this.reload());
+  }
 
   getTreeItem(element: Scratch): TreeItem {
     return element;
@@ -35,7 +38,7 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
       return Promise.resolve([]);
     }
 
-    const files = await this.fileSystem.readTree();
+    const files = await readTree(this.fileSystem, ScratchFileSystemProvider.ROOT);
 
     return files
       .filter((uri) => !IGNORED_FILES.has(uri.path))

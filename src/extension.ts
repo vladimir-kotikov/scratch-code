@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
 import { map, prop, sort, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
-import { ScratchSearchProvider } from "./providers/search";
+import { ScratchSearchProvider } from "./providers/fuseSearch";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
 import { DisposableContainer, readTree } from "./util";
 
@@ -264,7 +264,10 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   quickSearch = async () => {
     const searchChangedSubscription = this.searchWidget.onDidChangeValue(async (value) => {
       this.searchWidget.items = this.index.search(value).map((result) => ({
-        label: result.id.path.substring(1),
+        label:
+          result.matches && result.matches[0].value
+            ? result.matches[0].value.slice(0, 100).replace(/\s+/g, " ")
+            : result.item.uri,
         description: "",
         uri: Uri.parse(result.item.uri),
       }));

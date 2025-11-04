@@ -32,7 +32,10 @@ export const sort =
 
 export const flat = <T>(arr: T[][]): T[] => arr.flat();
 
-export const asPromise = <P>(p: P | PromiseLike<P>): Promise<P> =>
-  p instanceof Promise ? p : Promise.resolve(p);
+const isPromiseLike = <P>(p: P | PromiseLike<P>): p is PromiseLike<P> =>
+  typeof (p as PromiseLike<P>)?.then === "function";
+
+export const asPromise = <P>(p: P | PromiseLike<P>): PromiseLike<P> =>
+  isPromiseLike(p) ? p : Promise.resolve(p);
 
 export const waitPromises = Promise.all.bind(Promise);

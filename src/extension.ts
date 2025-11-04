@@ -3,7 +3,7 @@ import * as path from "path";
 import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
 import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
-import { map, prop, sort, zip } from "./fu";
+import { map, pass, prop, sort, waitPromises, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { ScratchSearchProvider } from "./providers/fuseSearch";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
@@ -131,7 +131,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
     this.index
       .loadIndex()
-      .catch((err) => {
+      .then(pass, (err) => {
         vscode.window.showWarningMessage(
           `Failed to load scratches search index: ${err}. Rebuilding the index...`,
         );
@@ -141,7 +141,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         this.searchWidget.busy = false;
         this.searchIndexTimer = setInterval(this.index.saveIndex, 15 * 60 * 1000);
         vscode.window.showInformationMessage(
-          "Scratches search index loaded, items in index: " + this.index.size,
+          "Scratches: search index loaded, documents: " + this.index.size(),
         );
       });
 
@@ -284,34 +284,35 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   buildIndex = async () =>
-    vscode.window
-      .withProgress(
-        {
-          title: "Rebuilding scratches search index...",
-          location: vscode.ProgressLocation.Notification,
-          cancellable: false,
-        },
-        async (progress) => {
-          readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
-            .then((uris) =>
-              uris.map((uri) =>
-                this.index.addFile(uri).then((uri) =>
-                  progress.report({
-                    message: `Indexed ${uri.path.substring(1)}`,
-                    increment: 100 / uris.length,
-                  }),
-                ),
+    vscode.window.withProgress(
+      {
+        title: "Scratches: building search index...",
+        location: vscode.ProgressLocation.Notification,
+        cancellable: false,
+      },
+      async (progress) =>
+        readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
+          .then((uris) =>
+            uris.map((uri) =>
+              this.index.addFile(uri).then((uri) =>
+                progress.report({
+                  message: `Indexed ${uri.path.substring(1)}`,
+                  increment: 100 / uris.length,
+                }),
               ),
-            )
-            .then((promises) => Promise.all(promises));
-        },
-      )
-      .then(() => this.index.saveIndex())
-      .then(() => vscode.window.showInformationMessage("Scratches search index rebuilt"));
+            ),
+          )
+          .then(waitPromises)
+          .then(() => this.index.saveIndex()),
+    );
 
   resetIndex = async () => {
     this.index.removeAll();
-    return this.buildIndex();
+    return this.buildIndex().then(() =>
+      vscode.window.showInformationMessage(
+        "Scratches: search index rebuilt, documents: " + this.index.size(),
+      ),
+    );
   };
 
   renameScratch = async (scratch?: Scratch) => {

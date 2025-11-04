@@ -1,20 +1,27 @@
-import MiniSearch from "minisearch";
+import MiniSearch, { Options as SearchOptions } from "minisearch";
 import * as vscode from "vscode";
 import { FileSystemProvider, Uri } from "vscode";
 import { asPromise, pass } from "../fu";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
-const searchConfig = { fields: ["content", "uri"], idField: "uri", searchOptions: { fuzzy: 0.2 } };
+const searchOptions: SearchOptions = {
+  idField: "uri",
+  fields: ["content", "uri"],
+  storeFields: ["uri", "content"],
+  searchOptions: {
+    fuzzy: 0.2,
+    prefix: true,
+    boost: { content: 2 },
+  },
+};
+
 type SearchDoc = {
   uri: string;
   content: string;
 };
 
 export class ScratchSearchProvider {
-  searchIndex: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>({
-    fields: ["content"],
-    idField: "uri",
-  });
+  searchIndex: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>(searchOptions);
 
   constructor(
     private readonly fs: FileSystemProvider,
@@ -26,17 +33,14 @@ export class ScratchSearchProvider {
   search = (query: string, limit: number = 10) => this.searchIndex.search(query).slice(0, limit);
 
   loadIndex = () =>
-    asPromise(
-      vscode.workspace.fs
-        .readFile(this.indexFile)
-        .then((data) => MiniSearch.loadJSONAsync(data.toString(), searchConfig))
-        .then((index) => (this.searchIndex = index)),
-    );
+    asPromise(vscode.workspace.fs.readFile(this.indexFile))
+      .then((data) => MiniSearch.loadJSON(data.toString(), searchOptions))
+      .then((index) => (this.searchIndex = index));
 
   saveIndex = () =>
     vscode.workspace.fs.writeFile(
       this.indexFile,
-      Buffer.from(JSON.stringify(this.searchIndex), "utf8"),
+      Buffer.from(JSON.stringify(this.searchIndex.toJSON()), "utf8"),
     );
 
   addFile = (uri: Uri) =>

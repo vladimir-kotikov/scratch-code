@@ -33,8 +33,13 @@
         "category": "Scratches"
       },
       {
-        "command": "scratches.quickSearch",
+        "command": "scratches.search.quickSearch",
         "title": "Quick Search",
+        "category": "Scratches"
+      },
+      {
+        "command": "scratches.search.resetIndex",
+        "title": "Reset Search Index",
         "category": "Scratches"
       },
       {

@@ -120,7 +120,6 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
     this.index = new ScratchSearchProvider(
       this.fileSystemProvider,
-      ScratchFileSystemProvider.ROOT,
       Uri.joinPath(this.storageDir, "searchIndex.json"),
     );
 
@@ -130,10 +129,21 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     this.searchWidget.placeholder = "Search scratches...";
     this.searchWidget.busy = true;
 
-    this.index.loadIndex().then(() => {
-      this.searchWidget.busy = false;
-      this.searchIndexTimer = setInterval(this.index.saveIndex, 15 * 60 * 1000);
-    });
+    this.index
+      .loadIndex()
+      .catch((err) => {
+        vscode.window.showWarningMessage(
+          `Failed to load scratches search index: ${err}. Rebuilding the index...`,
+        );
+        return this.buildIndex();
+      })
+      .then(() => {
+        this.searchWidget.busy = false;
+        this.searchIndexTimer = setInterval(this.index.saveIndex, 15 * 60 * 1000);
+        vscode.window.showInformationMessage(
+          "Scratches search index loaded, items in index: " + this.index.size,
+        );
+      });
 
     this.disposeLater(
       this.fileSystemProvider.watch(ScratchFileSystemProvider.ROOT, {
@@ -152,9 +162,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
     match(change)
-      .with({ type: FileChangeType.Deleted, uri: P.select() }, this.index.discardFile)
+      .with({ type: FileChangeType.Deleted, uri: P.select() }, this.index.removeFile)
       .with({ type: FileChangeType.Created, uri: P.select() }, this.index.addFile)
-      .with({ type: FileChangeType.Changed, uri: P.select() }, this.index.replaceFile)
+      .with({ type: FileChangeType.Changed, uri: P.select() }, this.index.updateFile)
       .otherwise((c) => console.error("Unhandled file change event", c));
 
   newScratch = async (filename: string, content: string) => {
@@ -256,7 +266,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       this.searchWidget.items = this.index.search(value).map((result) => ({
         label: result.id.path.substring(1),
         description: "",
-        uri: result.id,
+        uri: Uri.parse(result.item.uri),
       }));
     });
 
@@ -268,6 +278,37 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     });
 
     this.searchWidget.show();
+  };
+
+  buildIndex = async () =>
+    vscode.window
+      .withProgress(
+        {
+          title: "Rebuilding scratches search index...",
+          location: vscode.ProgressLocation.Notification,
+          cancellable: false,
+        },
+        async (progress) => {
+          readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
+            .then((uris) =>
+              uris.map((uri) =>
+                this.index.addFile(uri).then((uri) =>
+                  progress.report({
+                    message: `Indexed ${uri.path.substring(1)}`,
+                    increment: 100 / uris.length,
+                  }),
+                ),
+              ),
+            )
+            .then((promises) => Promise.all(promises));
+        },
+      )
+      .then(() => this.index.saveIndex())
+      .then(() => vscode.window.showInformationMessage("Scratches search index rebuilt"));
+
+  resetIndex = async () => {
+    this.index.removeAll();
+    return this.buildIndex();
   };
 
   renameScratch = async (scratch?: Scratch) => {

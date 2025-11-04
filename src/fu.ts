@@ -1,5 +1,10 @@
 type Fn<Args extends unknown[] = unknown[], R = unknown> = (...args: Args) => R;
 
+export const pass =
+  <T>(value: T) =>
+  () =>
+    value;
+
 export const zip =
   <A, B>(as: A[]) =>
   (bs: B[]): [A, B][] =>
@@ -29,3 +34,5 @@ export const flat = <T>(arr: T[][]): T[] => arr.flat();
 
 export const asPromise = <P>(p: P | PromiseLike<P>): Promise<P> =>
   p instanceof Promise ? p : Promise.resolve(p);
+
+export const waitPromises = Promise.all.bind(Promise);

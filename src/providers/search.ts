@@ -1,14 +1,12 @@
 import MiniSearch from "minisearch";
 import * as vscode from "vscode";
 import { FileSystemProvider, Uri } from "vscode";
-import { asPromise, map } from "../fu";
-import { readTree } from "../util";
+import { asPromise, pass } from "../fu";
 
-const waitAll = Promise.all.bind(Promise);
-
-const searchConfig = { fields: ["content"], idField: "uri" };
+const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const searchConfig = { fields: ["content", "uri"], idField: "uri", searchOptions: { fuzzy: 0.2 } };
 type SearchDoc = {
-  uri: Uri;
+  uri: string;
   content: string;
 };
 
@@ -20,29 +18,19 @@ export class ScratchSearchProvider {
 
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly docRoot: Uri,
     private readonly indexFile: Uri,
   ) {
     this.searchIndex = new MiniSearch<SearchDoc>({ fields: ["content"], idField: "uri" });
   }
 
-  private setIndex = (index: MiniSearch<SearchDoc>) => {
-    this.searchIndex = index;
-  };
-
-  private populateIndex = () =>
-    readTree(this.fs, this.docRoot).then(map(this.addFile)).then(waitAll);
-
   search = (query: string, limit: number = 10) => this.searchIndex.search(query).slice(0, limit);
 
   loadIndex = () =>
-    vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: "Loading search index..." },
-      () =>
-        vscode.workspace.fs
-          .readFile(this.indexFile)
-          .then((data) => MiniSearch.loadJSONAsync(data.toString(), searchConfig))
-          .then(this.setIndex, this.populateIndex),
+    asPromise(
+      vscode.workspace.fs
+        .readFile(this.indexFile)
+        .then((data) => MiniSearch.loadJSONAsync(data.toString(), searchConfig))
+        .then((index) => (this.searchIndex = index)),
     );
 
   saveIndex = () =>
@@ -52,14 +40,20 @@ export class ScratchSearchProvider {
     );
 
   addFile = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri)).then((data) =>
-      this.searchIndex.add({ uri, content: data.toString() }),
-    );
+    asPromise(this.fs.readFile(uri))
+      .then((data) => {
+        this.searchIndex.add({ uri: uri.toString(), content: decoder.decode(data) });
+      })
+      .then(pass(uri));
 
-  replaceFile = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri)).then((data) =>
-      this.searchIndex.replace({ uri, content: data.toString() }),
-    );
+  updateFile = (uri: Uri) =>
+    asPromise(this.fs.readFile(uri))
+      .then((data) =>
+        this.searchIndex.replace({ uri: uri.toString(), content: decoder.decode(data) }),
+      )
+      .then(pass(uri));
 
-  discardFile = (uri: Uri) => this.searchIndex.discard(uri);
+  removeFile = (uri: Uri) => this.searchIndex.discard(uri.toString());
+
+  removeAll = () => this.searchIndex.removeAll();
 }

@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
 import { map, pass, prop, sort, waitPromises, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
-import { ScratchSearchProvider } from "./providers/fuseSearch";
+import { ScratchSearchProvider } from "./providers/search";
 import { Scratch, ScratchTreeProvider } from "./providers/tree";
 import { DisposableContainer, readTree } from "./util";
 
@@ -128,6 +128,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     );
     this.searchWidget.placeholder = "Search scratches...";
     this.searchWidget.busy = true;
+    this.searchWidget.matchOnDescription = true;
+    this.searchWidget.matchOnDetail = true;
 
     this.index
       .loadIndex()
@@ -262,21 +264,19 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   quickSearch = async () => {
-    const searchChangedSubscription = this.searchWidget.onDidChangeValue(async (value) => {
+
+
+    const searchChangedSubscription = this.searchWidget.onDidChangeValue((value) => {
       this.searchWidget.items = this.index.search(value).map((result) => ({
-        label:
-          result.matches && result.matches[0].value
-            ? result.matches[0].value.slice(0, 100).replace(/\s+/g, " ")
-            : result.item.uri,
-        description: "",
-        uri: Uri.parse(result.item.uri),
+        label: result.path,
+        detail: result.textMatch,
+        iconPath: vscode.ThemeIcon.File,
+        uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
       }));
     });
 
     this.searchWidget.onDidAccept(async () => {
       searchChangedSubscription.dispose();
-      this.searchWidget.hide();
-      this.searchWidget.items = [];
       vscode.commands.executeCommand("vscode.open", this.searchWidget.selectedItems[0].uri);
     });
 

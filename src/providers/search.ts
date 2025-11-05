@@ -1,23 +1,31 @@
-import MiniSearch, { Options as SearchOptions } from "minisearch";
+import MiniSearch, { Options as SearchOptions, SearchResult } from "minisearch";
 import * as vscode from "vscode";
 import { FileSystemProvider, Uri } from "vscode";
 import { asPromise, pass } from "../fu";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const searchOptions: SearchOptions = {
-  idField: "uri",
-  fields: ["content", "uri"],
-  storeFields: ["uri", "content"],
-  searchOptions: {
-    fuzzy: 0.2,
-    prefix: true,
-    boost: { content: 2 },
-  },
+  fields: ["path", "content"],
+  storeFields: ["path", "content"],
 };
 
-type SearchDoc = {
-  uri: string;
+export type SearchDoc = {
+  id: string;
+  path: string;
   content: string;
+};
+
+const getFirstMatch = (result: SearchResult & SearchDoc) => {
+  const [term] =
+    Object.entries(result.match).find(([, fields]) => fields.includes("content")) ?? [];
+
+  if (term) {
+    const regexp = new RegExp(`(${term})`, "gi");
+    const i = result.content.search(regexp);
+    return result.content.slice(i, i + 100).split("\n")[0];
+  }
+
+  return;
 };
 
 export class ScratchSearchProvider {
@@ -26,11 +34,26 @@ export class ScratchSearchProvider {
   constructor(
     private readonly fs: FileSystemProvider,
     private readonly indexFile: Uri,
-  ) {
-    this.searchIndex = new MiniSearch<SearchDoc>({ fields: ["content"], idField: "uri" });
-  }
+  ) {}
 
-  search = (query: string, limit: number = 10) => this.searchIndex.search(query).slice(0, limit);
+  private readDocument = (uri: Uri) =>
+    asPromise(this.fs.readFile(uri)).then((data) => ({
+      id: uri.path.substring(1),
+      path: uri.path.substring(1),
+      content: decoder.decode(data),
+    }));
+
+  search = (query: string): (SearchResult & SearchDoc & { textMatch?: string })[] =>
+    this.searchIndex
+      .search(query === "" ? MiniSearch.wildcard : query, {
+        fuzzy: 0.2,
+        prefix: true,
+        combineWith: "AND",
+      })
+      .map((result) => ({
+        ...(result as SearchDoc & SearchResult),
+        textMatch: getFirstMatch(result as SearchDoc & SearchResult),
+      }));
 
   loadIndex = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
@@ -44,20 +67,16 @@ export class ScratchSearchProvider {
     );
 
   addFile = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri))
-      .then((data) => {
-        this.searchIndex.add({ uri: uri.toString(), content: decoder.decode(data) });
-      })
+    this.readDocument(uri)
+      .then((data) => this.searchIndex.add(data))
       .then(pass(uri));
 
   updateFile = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri))
-      .then((data) =>
-        this.searchIndex.replace({ uri: uri.toString(), content: decoder.decode(data) }),
-      )
+    this.readDocument(uri)
+      .then((data) => this.searchIndex.replace(data))
       .then(pass(uri));
 
-  removeFile = (uri: Uri) => this.searchIndex.discard(uri.toString());
+  removeFile = (uri: Uri) => this.searchIndex.discard(uri.path.substring(1));
 
   removeAll = () => this.searchIndex.removeAll();
 }

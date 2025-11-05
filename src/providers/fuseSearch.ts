@@ -17,11 +17,6 @@ const searchConfig: IFuseOptions<SearchDoc> = {
   threshold: 0.3,
 };
 
-const set = (obj: unknown) => (val: unknown) => {
-  obj = val;
-  return obj;
-};
-
 export class ScratchSearchProvider {
   private searchIndex = new Fuse<SearchDoc>([], searchConfig);
 

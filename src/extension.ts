@@ -264,8 +264,6 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   quickSearch = async () => {
-
-
     const searchChangedSubscription = this.searchWidget.onDidChangeValue((value) => {
       this.searchWidget.items = this.index.search(value).map((result) => ({
         label: result.path,

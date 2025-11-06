@@ -125,7 +125,8 @@
     "pretest": "npm run compile && npm run lint",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.38.0",
@@ -149,6 +150,7 @@
   "dependencies": {
     "@vscode/vsce": "^3.6.2",
     "fuse.js": "^7.1.0",
+    "husky": "^9.1.7",
     "lang-map": "^0.4.0",
     "minisearch": "^7.2.0",
     "ts-pattern": "^5.9.0"

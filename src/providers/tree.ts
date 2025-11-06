@@ -1,8 +1,34 @@
-import { EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from "vscode";
-import { readTree } from "../util";
+import {
+  EventEmitter,
+  FileStat,
+  TreeDataProvider,
+  TreeItem,
+  TreeItemCollapsibleState,
+  Uri,
+} from "vscode";
+import { filter, map, sort } from "../fu";
+import { isFile, readDirWithStats } from "../util";
 import { ScratchFileSystemProvider } from "./fs";
 
-const IGNORED_FILES = new Set([".DS_Store"]);
+enum SortOrder {
+  ByName,
+  ByCreationDate,
+}
+
+type Comparator<T> = (a: T, b: T) => number;
+
+const desc =
+  <T>(cmp: Comparator<T>): Comparator<T> =>
+  (a: T, b: T) =>
+    -cmp(a, b);
+
+const comparators: Record<SortOrder, (a: [Uri, FileStat], b: [Uri, FileStat]) => number> = {
+  [SortOrder.ByCreationDate]: desc(
+    (a: [Uri, FileStat], b: [Uri, FileStat]) => a[1].ctime - b[1].ctime,
+  ),
+  [SortOrder.ByName]: (a: [Uri, FileStat], b: [Uri, FileStat]) =>
+    a[0].path.localeCompare(b[0].path),
+};
 
 export class Scratch extends TreeItem {
   constructor(public readonly uri: Uri) {
@@ -16,14 +42,33 @@ export class Scratch extends TreeItem {
       arguments: [uri],
     };
   }
+
+  static from = ([uri]: [Uri, FileStat]): Scratch => new Scratch(uri);
 }
+
 export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private readonly fileSystem: ScratchFileSystemProvider) {
+  constructor(
+    private readonly fileSystem: ScratchFileSystemProvider,
+    private _sortOrder: SortOrder = SortOrder.ByName,
+  ) {
     this.fileSystem.onDidChangeFile(() => this.reload());
   }
+
+  public get sortOrder(): SortOrder {
+    return this._sortOrder;
+  }
+
+  public set sortOrder(value: SortOrder) {
+    this._sortOrder = value;
+    this.reload();
+  }
+
+  cycleSortOrder = () => {
+    this.sortOrder = (this._sortOrder + 1) % 2;
+  };
 
   getTreeItem(element: Scratch): TreeItem {
     return element;
@@ -33,16 +78,9 @@ export class ScratchTreeProvider implements TreeDataProvider<Scratch> {
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  async getChildren(element?: Scratch): Promise<Scratch[]> {
-    if (element) {
-      return Promise.resolve([]);
-    }
-
-    const files = await readTree(this.fileSystem, ScratchFileSystemProvider.ROOT);
-
-    return files
-      .filter((uri) => !IGNORED_FILES.has(uri.path))
-      .sort((a, b) => a.path.localeCompare(b.path))
-      .map((uri) => new Scratch(uri));
-  }
+  getChildren = (element?: Scratch): PromiseLike<Scratch[]> =>
+    readDirWithStats(this.fileSystem, element?.uri ?? ScratchFileSystemProvider.ROOT)
+      .then(filter(([, stat]) => isFile(stat.type)))
+      .then(sort(comparators[this._sortOrder]))
+      .then(map(Scratch.from));
 }

@@ -19,7 +19,7 @@ const whenFile = (uri: Uri): Promise<Uri> =>
     vscode.workspace.fs
       .stat(uri)
       .then(
-        (stat) =>
+        stat =>
           stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink)
             ? resolve(uri)
             : reject(),
@@ -86,14 +86,14 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
 
     const watcher = vscode.workspace.createFileSystemWatcher(fsPath);
     return DisposableContainer.from(
-      watcher.onDidChange((changedUri) =>
+      watcher.onDidChange(changedUri =>
         whenFile(changedUri).then(this.createFileChangedEvent).then(this.fireChangeEvents),
       ),
-      watcher.onDidCreate((createdUri) =>
+      watcher.onDidCreate(createdUri =>
         whenFile(createdUri).then(this.createFileCreatedEvent).then(this.fireChangeEvents),
       ),
       // The file is already deleted, so we can't check its type
-      watcher.onDidDelete((deletedUri) =>
+      watcher.onDidDelete(deletedUri =>
         this.fireChangeEvents(this.createFileDeletedEvent(deletedUri)),
       ),
       watcher,

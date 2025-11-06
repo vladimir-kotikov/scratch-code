@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
     scratchDir = vscode.Uri.parse(path.normalize(scratchDirSetting));
   }
 
-  vscode.workspace.onDidChangeConfiguration((e) => {
+  vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration("scratches")) {
       vscode.window.showWarningMessage(
         "Scratches extension's configuration changed, reload window to apply new configuration.",
@@ -42,6 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
+    vscode.commands.registerCommand("scratches.changeSortOrder", extension.changeSortOrder),
     extension,
   );
 }

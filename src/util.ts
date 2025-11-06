@@ -1,11 +1,18 @@
-import { Disposable, FileSystemProvider, FileType, Uri } from "vscode";
-import { asPromise, call, flat, map } from "./fu";
+import { Disposable, FileStat, FileSystemProvider, FileType, Uri } from "vscode";
+import { asPromise, call, flat, map, unzip, zip } from "./fu";
 
-/**
- * Given the filesystem provider and a directory uri, returns all nested files uris
- * @param uri Directory to return files from
- * @returns array of nested files uris
- */
+export const isFile = (type: FileType): boolean =>
+  type === FileType.File || type === (FileType.File | FileType.SymbolicLink);
+
+export const readDirWithStats = (
+  provider: FileSystemProvider,
+  uri: Uri,
+): PromiseLike<[Uri, FileStat][]> =>
+  asPromise(provider.readDirectory(uri))
+    .then(unzip)
+    .then(([fnames]) => fnames.map(fname => Uri.joinPath(uri, fname)))
+    .then(uris => Promise.all(uris.map(provider.stat)).then(zip(uris)));
+
 export const readTree = (provider: FileSystemProvider, uri: Uri): PromiseLike<Uri[]> =>
   asPromise(provider.readDirectory(uri))
     .then(
@@ -17,7 +24,7 @@ export const readTree = (provider: FileSystemProvider, uri: Uri): PromiseLike<Ur
             : [Uri.joinPath(uri, fileName)];
       }),
     )
-    .then((items) => Promise.all(items))
+    .then(items => Promise.all(items))
     .then(flat);
 
 export class DisposableContainer implements Disposable {

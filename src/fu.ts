@@ -10,6 +10,16 @@ export const zip =
   (bs: B[]): [A, B][] =>
     as.map((a, i) => [a, bs[i]]);
 
+export const unzip = <A, B>(pairs: [A, B][]): [A[], B[]] => {
+  const as: A[] = [];
+  const bs: B[] = [];
+  for (const [a, b] of pairs) {
+    as.push(a);
+    bs.push(b);
+  }
+  return [as, bs];
+};
+
 export const prop =
   <K extends PropertyKey>(key: K) =>
   <T extends Record<K, unknown>>(obj: T): T[K] =>
@@ -24,6 +34,11 @@ export const map =
   <T, U>(fn: (item: T) => U) =>
   (arr: T[]): U[] =>
     arr.map(fn);
+
+export const filter =
+  <T>(fn: (item: T) => boolean) =>
+  (arr: T[]): T[] =>
+    arr.filter(fn);
 
 export const sort =
   <T>(compareFn: (a: T, b: T) => number) =>

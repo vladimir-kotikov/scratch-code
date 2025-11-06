@@ -134,7 +134,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
     this.index
       .loadIndex()
-      .then(pass, (err) => {
+      .then(pass, err => {
         vscode.window.showWarningMessage(
           `Failed to load scratches search index: ${err}. Rebuilding the index...`,
         );
@@ -168,7 +168,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .with({ type: FileChangeType.Deleted, uri: P.select() }, this.index.removeFile)
       .with({ type: FileChangeType.Created, uri: P.select() }, this.index.addFile)
       .with({ type: FileChangeType.Changed, uri: P.select() }, this.index.updateFile)
-      .otherwise((c) => console.error("Unhandled file change event", c));
+      .otherwise(c => console.error("Unhandled file change event", c));
 
   newScratch = async (filename: string, content: string) => {
     const uri = Uri.parse(`scratch:/${filename}`);
@@ -223,7 +223,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
     if (doc.isUntitled) {
       return editor
-        .edit((editBuilder) => {
+        .edit(editBuilder => {
           selectAll(editor);
           editBuilder.delete(editor.selection);
         })
@@ -240,7 +240,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   quickOpen = async () => {
     const allScratchesPromise = readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
-      .then((entries) =>
+      .then(entries =>
         Promise.all(entries.map(this.fileSystemProvider.stat))
           .then(map(prop("mtime")))
           .then(zip(entries))
@@ -248,7 +248,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           .then(map(prop(0))),
       )
       .then(
-        map((uri) => ({
+        map(uri => ({
           label: uri.path.substring(1),
           description: uri.toString(),
           iconPath: vscode.ThemeIcon.File,
@@ -261,12 +261,12 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         placeHolder: "Search scratches...",
         matchOnDescription: true,
       })
-      .then((picked) => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
+      .then(picked => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
   };
 
   quickSearch = async () => {
-    const searchChangedSubscription = this.searchWidget.onDidChangeValue((value) => {
-      this.searchWidget.items = this.index.search(value).map((result) => ({
+    const searchChangedSubscription = this.searchWidget.onDidChangeValue(value => {
+      this.searchWidget.items = this.index.search(value).map(result => ({
         label: result.path,
         detail: result.textMatch,
         iconPath: vscode.ThemeIcon.File,
@@ -289,11 +289,11 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         location: vscode.ProgressLocation.Notification,
         cancellable: false,
       },
-      async (progress) =>
+      async progress =>
         readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
-          .then((uris) =>
-            uris.map((uri) =>
-              this.index.addFile(uri).then((uri) =>
+          .then(uris =>
+            uris.map(uri =>
+              this.index.addFile(uri).then(uri =>
                 progress.report({
                   message: `Indexed ${uri.path.substring(1)}`,
                   increment: 100 / uris.length,
@@ -361,4 +361,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
+
+  changeSortOrder = () =>
+    (this.treeDataProvider.sortOrder = (this.treeDataProvider.sortOrder + 1) % 2);
 }

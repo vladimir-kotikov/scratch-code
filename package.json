@@ -64,6 +64,12 @@
         "title": "Open directory",
         "category": "Scratches",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "scratches.changeSortOrder",
+        "title": "Change Sort Order",
+        "category": "Scratches",
+        "icon": "$(arrow-swap)"
       }
     ],
     "configuration": {
@@ -98,6 +104,11 @@
         },
         {
           "command": "scratches.newScratch",
+          "when": "view == scratches",
+          "group": "navigation"
+        },
+        {
+          "command": "scratches.changeSortOrder",
           "when": "view == scratches",
           "group": "navigation"
         }
@@ -154,6 +165,7 @@
     "ts-pattern": "^5.9.0"
   },
   "prettier": {
-    "printWidth": 100
+    "printWidth": 100,
+    "arrowParens": "avoid"
   }
 }

@@ -12,13 +12,13 @@ export function run(): Promise<void> {
   const testsRoot = path.resolve(__dirname, "..");
 
   return new Promise((c, e) => {
-    glob("**/**.test.js", { cwd: testsRoot }).then((files) => {
+    glob("**/**.test.js", { cwd: testsRoot }).then(files => {
       // Add files to the test suite
-      files.forEach((f) => mocha.addFile(path.resolve(testsRoot, f)));
+      files.forEach(f => mocha.addFile(path.resolve(testsRoot, f)));
 
       try {
         // Run the mocha test
-        mocha.run((failures) => {
+        mocha.run(failures => {
           if (failures > 0) {
             e(new Error(`${failures} tests failed.`));
           } else {

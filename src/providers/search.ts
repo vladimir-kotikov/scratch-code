@@ -37,7 +37,7 @@ export class ScratchSearchProvider {
   ) {}
 
   private readDocument = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri)).then((data) => ({
+    asPromise(this.fs.readFile(uri)).then(data => ({
       id: uri.path.substring(1),
       path: uri.path.substring(1),
       content: decoder.decode(data),
@@ -50,15 +50,15 @@ export class ScratchSearchProvider {
         prefix: true,
         combineWith: "AND",
       })
-      .map((result) => ({
+      .map(result => ({
         ...(result as SearchDoc & SearchResult),
         textMatch: getFirstMatch(result as SearchDoc & SearchResult),
       }));
 
   loadIndex = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
-      .then((data) => MiniSearch.loadJSON(data.toString(), searchOptions))
-      .then((index) => (this.searchIndex = index));
+      .then(data => MiniSearch.loadJSON(data.toString(), searchOptions))
+      .then(index => (this.searchIndex = index));
 
   saveIndex = () =>
     vscode.workspace.fs.writeFile(
@@ -68,12 +68,12 @@ export class ScratchSearchProvider {
 
   addFile = (uri: Uri) =>
     this.readDocument(uri)
-      .then((data) => this.searchIndex.add(data))
+      .then(data => this.searchIndex.add(data))
       .then(pass(uri));
 
   updateFile = (uri: Uri) =>
     this.readDocument(uri)
-      .then((data) => this.searchIndex.replace(data))
+      .then(data => this.searchIndex.replace(data))
       .then(pass(uri));
 
   removeFile = (uri: Uri) => this.searchIndex.discard(uri.path.substring(1));

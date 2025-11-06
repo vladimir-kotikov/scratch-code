@@ -13,6 +13,7 @@ const extOverrides: Record<string, string> = {
   makefile: "",
   ignore: "",
   plaintext: "",
+  shellscript: "sh",
 };
 
 const stripChars = (str: string, chars: string): string => {

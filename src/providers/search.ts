@@ -79,4 +79,6 @@ export class ScratchSearchProvider {
   removeFile = (uri: Uri) => this.searchIndex.discard(uri.path.substring(1));
 
   removeAll = () => this.searchIndex.removeAll();
+
+  size = () => this.searchIndex.documentCount;
 }

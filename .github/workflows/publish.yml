@@ -13,7 +13,7 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run lint
-      - run: vsce package
+      - run: npx vsce package
         if: success()
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}

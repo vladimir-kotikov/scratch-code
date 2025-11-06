@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const extension = new ScratchExtension(scratchDir);
+  const extension = new ScratchExtension(scratchDir, context.globalStorageUri);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("scratches", extension.treeDataProvider),
@@ -37,6 +37,8 @@ export function activate(context: vscode.ExtensionContext) {
       extension.newScratchFromBuffer,
     ),
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
+    vscode.commands.registerCommand("scratches.search.quickSearch", extension.quickSearch),
+    vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),

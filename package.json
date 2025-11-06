@@ -33,6 +33,16 @@
         "category": "Scratches"
       },
       {
+        "command": "scratches.search.quickSearch",
+        "title": "Quick Search",
+        "category": "Scratches"
+      },
+      {
+        "command": "scratches.search.resetIndex",
+        "title": "Reset Search Index",
+        "category": "Scratches"
+      },
+      {
         "command": "scratches.newScratchFromBuffer",
         "title": "New from current buffer",
         "category": "Scratches"
@@ -115,11 +125,11 @@
     "pretest": "npm run compile && npm run lint",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.38.0",
-    "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "@types/sinon": "^17.0.4",
@@ -139,7 +149,11 @@
   },
   "dependencies": {
     "@vscode/vsce": "^3.6.2",
-    "lang-map": "^0.4.0"
+    "fuse.js": "^7.1.0",
+    "husky": "^9.1.7",
+    "lang-map": "^0.4.0",
+    "minisearch": "^7.2.0",
+    "ts-pattern": "^5.9.0"
   },
   "prettier": {
     "printWidth": 100

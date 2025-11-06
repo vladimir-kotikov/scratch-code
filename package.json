@@ -116,7 +116,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run clean && npm run compile",
+    "vscode:prepublish": "npm run clean && npm run compile && npm i --omit=dev",
     "vscode:publish": "vsce publish",
     "vscode:package": "vsce package",
     "clean": "npx rimraf *.vsix out",
@@ -126,7 +126,7 @@
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
     "test": "node ./out/test/runTest.js",
-    "prepare": "husky"
+    "prepare": "npx husky || true"
   },
   "devDependencies": {
     "@eslint/js": "^9.38.0",

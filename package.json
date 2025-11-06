@@ -18,7 +18,7 @@
   "activationEvents": [
     "onFileSystem:scratch"
   ],
-  "main": "./out/main.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -116,13 +116,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run clean && npm run compile && npm i --omit=dev",
-    "vscode:publish": "vsce publish",
-    "vscode:package": "vsce package",
-    "clean": "npx rimraf *.vsix out",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
+    "compile": "npm run check-types && node .esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "check-types": "tsc --noEmit",
+    "watch:esbuild": "node .esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
     "test": "node ./out/test/runTest.js",
@@ -136,6 +136,7 @@
     "@types/vscode": "^1.105.0",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.6.2",
+    "esbuild": "^0.25.12",
     "eslint": "^9.38.0",
     "glob": "^11.0.3",
     "globals": "^16.4.0",

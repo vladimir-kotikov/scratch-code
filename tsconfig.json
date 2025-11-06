@@ -15,6 +15,6 @@
     "noUnusedParameters": true
   },
   "exclude": [
-    "eslint.config.mts"
+    "eslint.config.mjs"
   ]
 }

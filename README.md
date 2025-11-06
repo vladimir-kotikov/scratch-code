@@ -71,6 +71,11 @@ Initial release of the extension
 - Better suggestions for new scratch filenames based on current document
 - Scratches replace untitled buffers they are created from
 
+### 0.2.0
+
+- Quick pick to open scratches
+- Quick search for scratches
+
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.

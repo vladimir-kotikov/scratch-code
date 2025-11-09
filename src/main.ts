@@ -43,6 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
     vscode.commands.registerCommand("scratches.changeSortOrder", extension.changeSortOrder),
+    vscode.commands.registerCommand("scratches.pinScratch", extension.pinScratch),
+    vscode.commands.registerCommand("scratches.unpinScratch", extension.unpinScratch),
     extension,
   );
 }

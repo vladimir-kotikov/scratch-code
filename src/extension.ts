@@ -4,9 +4,10 @@ import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
 import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
 import { map, pass, prop, sort, waitPromises, zip } from "./fu";
+import { PinStore, PIN_STORE_FILENAME } from "./pins";
 import { ScratchFileSystemProvider } from "./providers/fs";
+import { PinnedScratchTreeProvider, ScratchItem } from "./providers/pinnedTree";
 import { ScratchSearchProvider } from "./providers/search";
-import { Scratch, ScratchTreeProvider } from "./providers/tree";
 import { DisposableContainer, readTree } from "./util";
 
 const extOverrides: Record<string, string> = {
@@ -14,6 +15,14 @@ const extOverrides: Record<string, string> = {
   ignore: "",
   plaintext: "",
   shellscript: "sh",
+};
+
+type QuickPickScratchItem = (vscode.QuickPickItem & { uri: vscode.Uri }) | vscode.QuickPickItem;
+const isScratchEntry = (
+  i: QuickPickScratchItem,
+): i is vscode.QuickPickItem & { uri: vscode.Uri } => {
+  const candidate = i as { uri?: unknown };
+  return !!candidate.uri && candidate.uri instanceof Uri;
 };
 
 const stripChars = (str: string, chars: string): string => {
@@ -103,9 +112,10 @@ function currentScratchUri(): Uri | undefined {
 
 export class ScratchExtension extends DisposableContainer implements Disposable {
   readonly fileSystemProvider: ScratchFileSystemProvider;
-  readonly treeDataProvider: ScratchTreeProvider;
+  readonly treeDataProvider: PinnedScratchTreeProvider;
+  readonly pins: PinStore;
 
-  private searchWidget: vscode.QuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>;
+  private searchWidget: vscode.QuickPick<QuickPickScratchItem>;
   private index: ScratchSearchProvider;
   private searchIndexTimer: NodeJS.Timeout | undefined;
 
@@ -118,15 +128,15 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     [scratchDir, storageDir].forEach(vscode.workspace.fs.createDirectory);
 
     this.fileSystemProvider = this.disposeLater(new ScratchFileSystemProvider(this.scratchDir));
-    this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
+    this.pins = this.disposeLater(new PinStore(this.scratchDir));
+    this.pins.init();
+    this.treeDataProvider = new PinnedScratchTreeProvider(this.fileSystemProvider, this.pins);
     this.index = new ScratchSearchProvider(
       this.fileSystemProvider,
       Uri.joinPath(this.storageDir, "searchIndex.json"),
     );
 
-    this.searchWidget = this.disposeLater(
-      vscode.window.createQuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>(),
-    );
+    this.searchWidget = this.disposeLater(vscode.window.createQuickPick<QuickPickScratchItem>());
     this.searchWidget.placeholder = "Search scratches...";
     this.searchWidget.busy = true;
     this.searchWidget.matchOnDescription = true;
@@ -165,9 +175,15 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
     match(change)
-      .with({ type: FileChangeType.Deleted, uri: P.select() }, this.index.removeFile)
-      .with({ type: FileChangeType.Created, uri: P.select() }, this.index.addFile)
-      .with({ type: FileChangeType.Changed, uri: P.select() }, this.index.updateFile)
+      .with({ type: FileChangeType.Deleted, uri: P.select() }, uri => {
+        if (uri.path.substring(1) !== PIN_STORE_FILENAME) this.index.removeFile(uri);
+      })
+      .with({ type: FileChangeType.Created, uri: P.select() }, uri => {
+        if (uri.path.substring(1) !== PIN_STORE_FILENAME) this.index.addFile(uri);
+      })
+      .with({ type: FileChangeType.Changed, uri: P.select() }, uri => {
+        if (uri.path.substring(1) !== PIN_STORE_FILENAME) this.index.updateFile(uri);
+      })
       .otherwise(c => console.error("Unhandled file change event", c));
 
   newScratch = async (filename: string, content: string) => {
@@ -238,8 +254,34 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     return vscode.commands.executeCommand("vscode.open", scratchUri);
   };
 
+  private decorateQuickPickItems = (items: QuickPickScratchItem[]): QuickPickScratchItem[] => {
+    const pinnedSet = new Set(this.pins.list());
+    const pinnedItems: (vscode.QuickPickItem & { uri: vscode.Uri })[] = items
+      .filter(isScratchEntry)
+      .filter(i => pinnedSet.has(i.uri.path.substring(1)))
+      .map(i => ({
+        ...i,
+        iconPath: new vscode.ThemeIcon("pin"),
+        description: "Pinned",
+      }));
+    const otherItems: (vscode.QuickPickItem & { uri: vscode.Uri })[] = items
+      .filter(isScratchEntry)
+      .filter(i => !pinnedSet.has(i.uri.path.substring(1)));
+    if (pinnedItems.length === 0) {
+      return otherItems;
+    }
+    const result: QuickPickScratchItem[] = [
+      { label: "Pinned", kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+      ...pinnedItems,
+      { label: "Others", kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+      ...otherItems,
+    ];
+    return result;
+  };
+
   quickOpen = async () => {
     const allScratchesPromise = readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
+      .then(entries => entries.filter(uri => uri.path.substring(1) !== PIN_STORE_FILENAME))
       .then(entries =>
         Promise.all(entries.map(this.fileSystemProvider.stat))
           .then(map(prop("mtime")))
@@ -256,27 +298,92 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         })),
       );
 
-    return vscode.window
-      .showQuickPick(allScratchesPromise, {
-        placeHolder: "Search scratches...",
-        matchOnDescription: true,
-      })
-      .then(picked => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
+    const itemsPromise = allScratchesPromise.then(items =>
+      this.decorateQuickPickItems(
+        items.map(i => ({
+          ...i,
+          buttons: [
+            {
+              iconPath: new vscode.ThemeIcon("pin"),
+              tooltip: this.pins.isPinned(i.uri) ? "Unpin" : "Pin",
+            } as vscode.QuickInputButton,
+          ],
+        })),
+      ),
+    );
+    const qp = vscode.window.createQuickPick<QuickPickScratchItem>();
+    qp.placeholder = "Search scratches...";
+    qp.matchOnDescription = true;
+    qp.onDidTriggerItemButton(async e => {
+      if (!isScratchEntry(e.item)) return;
+      if (e.button.tooltip === "Pin") await this.pins.pin(e.item.uri);
+      if (e.button.tooltip === "Unpin") await this.pins.unpin(e.item.uri);
+      // Rebuild items with updated pin state
+      const raw = qp.items.filter(isScratchEntry).map(it => ({
+        ...it,
+        buttons: [
+          {
+            iconPath: new vscode.ThemeIcon("pin"),
+            tooltip: this.pins.isPinned(it.uri) ? "Unpin" : "Pin",
+          },
+        ],
+      }));
+      qp.items = this.decorateQuickPickItems(raw);
+    });
+    qp.onDidAccept(() => {
+      const picked = qp.selectedItems.find(isScratchEntry);
+      if (picked) {
+        vscode.commands.executeCommand("vscode.open", picked.uri);
+      }
+      qp.hide();
+    });
+    itemsPromise.then(items => (qp.items = items));
+    qp.show();
   };
 
   quickSearch = async () => {
     const searchChangedSubscription = this.searchWidget.onDidChangeValue(value => {
-      this.searchWidget.items = this.index.search(value).map(result => ({
-        label: result.path,
-        detail: result.textMatch,
-        iconPath: vscode.ThemeIcon.File,
-        uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
+      const raw: (vscode.QuickPickItem & { uri: vscode.Uri })[] = this.index
+        .search(value)
+        .filter(r => r.path !== PIN_STORE_FILENAME)
+        .map(result => ({
+          label: result.path,
+          detail: result.textMatch,
+          iconPath: vscode.ThemeIcon.File,
+          uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
+          buttons: [
+            {
+              iconPath: new vscode.ThemeIcon("pin"),
+              tooltip: this.pins.isPinned(Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path))
+                ? "Unpin"
+                : "Pin",
+            },
+          ],
+        }));
+      this.searchWidget.items = this.decorateQuickPickItems(raw);
+    });
+
+    this.searchWidget.onDidTriggerItemButton(async e => {
+      if (!isScratchEntry(e.item)) return;
+      if (e.button.tooltip === "Pin") await this.pins.pin(e.item.uri);
+      if (e.button.tooltip === "Unpin") await this.pins.unpin(e.item.uri);
+      // Force refresh of current results retaining query
+      const currentRaw = this.searchWidget.items.filter(isScratchEntry).map(it => ({
+        ...it,
+        buttons: [
+          {
+            iconPath: new vscode.ThemeIcon("pin"),
+            tooltip: this.pins.isPinned(it.uri) ? "Unpin" : "Pin",
+          },
+        ],
       }));
+      this.searchWidget.items = this.decorateQuickPickItems(currentRaw);
     });
 
     this.searchWidget.onDidAccept(async () => {
       searchChangedSubscription.dispose();
-      vscode.commands.executeCommand("vscode.open", this.searchWidget.selectedItems[0].uri);
+      const picked = this.searchWidget.selectedItems.find(isScratchEntry);
+      if (picked) vscode.commands.executeCommand("vscode.open", picked.uri);
     });
 
     this.searchWidget.show();
@@ -291,6 +398,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       },
       async progress =>
         readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
+          .then(uris => uris.filter(u => u.path.substring(1) !== PIN_STORE_FILENAME))
           .then(uris =>
             uris.map(uri =>
               this.index.addFile(uri).then(uri =>
@@ -314,7 +422,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     );
   };
 
-  renameScratch = async (scratch?: Scratch) => {
+  renameScratch = async (scratch?: ScratchItem) => {
     const uri = scratch?.uri ?? currentScratchUri();
     if (!uri) {
       return;
@@ -335,6 +443,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       path: path.join(path.dirname(uri.path), newName),
     });
     await this.fileSystemProvider.rename(uri, newUri);
+    await this.pins.rename(uri, newUri);
 
     // If there was no scratch then we just renamed a scratch opened in the
     // current editor so close it and reopen with the new name
@@ -344,7 +453,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     }
   };
 
-  deleteScratch = async (scratch?: Scratch) => {
+  deleteScratch = async (scratch?: ScratchItem) => {
     const uri = scratch?.uri ?? currentScratchUri();
     if (!uri) {
       return;
@@ -352,6 +461,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
     try {
       await this.fileSystemProvider.delete(uri);
+      await this.pins.remove(uri);
       if (!scratch) {
         await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
       }
@@ -362,6 +472,17 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
 
-  changeSortOrder = () =>
-    (this.treeDataProvider.sortOrder = (this.treeDataProvider.sortOrder + 1) % 2);
+  pinScratch = async (scratch?: ScratchItem) => {
+    const uri = scratch?.uri ?? currentScratchUri();
+    if (!uri) return;
+    await this.pins.pin(uri);
+  };
+
+  unpinScratch = async (scratch?: ScratchItem) => {
+    const uri = scratch?.uri ?? currentScratchUri();
+    if (!uri) return;
+    await this.pins.unpin(uri);
+  };
+
+  changeSortOrder = () => this.treeDataProvider.cycleSortOrder();
 }

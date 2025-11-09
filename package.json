@@ -31,27 +31,32 @@
       {
         "command": "scratches.quickOpen",
         "title": "Quick Open",
-        "category": "Scratches"
+        "category": "Scratches",
+        "icon": "$(go-to-file)"
       },
       {
         "command": "scratches.search.quickSearch",
         "title": "Quick Search",
-        "category": "Scratches"
+        "category": "Scratches",
+        "icon": "$(search)"
       },
       {
         "command": "scratches.search.resetIndex",
         "title": "Reset Search Index",
-        "category": "Scratches"
+        "category": "Scratches",
+        "icon": "$(refresh)"
       },
       {
         "command": "scratches.newScratchFromBuffer",
         "title": "New from current buffer",
-        "category": "Scratches"
+        "category": "Scratches",
+        "icon": "$(new-file)"
       },
       {
         "command": "scratches.renameScratch",
         "title": "Rename",
-        "category": "Scratches"
+        "category": "Scratches",
+        "icon": "$(edit)"
       },
       {
         "command": "scratches.deleteScratch",
@@ -70,6 +75,18 @@
         "title": "Change Sort Order",
         "category": "Scratches",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "scratches.pinScratch",
+        "title": "Pin",
+        "category": "Scratches",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "scratches.unpinScratch",
+        "title": "Unpin",
+        "category": "Scratches",
+        "icon": "$(discard)"
       }
     ],
     "configuration": {
@@ -85,7 +102,8 @@
       "explorer": [
         {
           "id": "scratches",
-          "name": "Scratches"
+          "name": "Scratches",
+          "icon": "media/scratches.svg"
         }
       ]
     },
@@ -100,36 +118,53 @@
         {
           "command": "scratches.openDirectory",
           "when": "view == scratches",
-          "group": "navigation"
+          "group": "navigation",
+          "icon": "$(folder-opened)"
         },
         {
           "command": "scratches.newScratch",
           "when": "view == scratches",
-          "group": "navigation"
+          "group": "navigation",
+          "icon": "$(new-file)"
         },
         {
           "command": "scratches.changeSortOrder",
           "when": "view == scratches",
-          "group": "navigation"
+          "group": "navigation",
+          "icon": "$(arrow-swap)"
         }
       ],
       "view/item/context": [
         {
           "command": "scratches.renameScratch",
           "when": "view == scratches",
-          "group": "1_modification"
+          "group": "1_modification",
+          "icon": "$(edit)"
         },
         {
           "command": "scratches.deleteScratch",
           "when": "view == scratches",
-          "group": "2_deletion"
+          "group": "2_deletion",
+          "icon": "$(trash)"
+        },
+        {
+          "command": "scratches.pinScratch",
+          "when": "view == scratches && viewItem == scratchUnpinned",
+          "group": "inline@1",
+          "icon": "$(pin)"
+        },
+        {
+          "command": "scratches.unpinScratch",
+          "when": "view == scratches && viewItem == scratchPinned",
+          "group": "inline@1",
+          "icon": "$(pin)"
         }
       ]
     }
   },
   "scripts": {
     "compile": "npm run check-types && node .esbuild.js",
-    "watch": "npm-run-all -p watch:*",
+    "watch": "concurrently \"npm run watch:esbuild\" \"npm run watch:tsc\"",
     "check-types": "tsc --noEmit",
     "watch:esbuild": "node .esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -157,7 +192,8 @@
     "prettier": "^3.6.2",
     "sinon": "^21.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3"
+    "typescript-eslint": "^8.46.3",
+    "concurrently": "^8.2.2"
   },
   "dependencies": {
     "lang-map": "^0.4.0",

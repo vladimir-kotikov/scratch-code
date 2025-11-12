@@ -126,7 +126,7 @@
     "package": "npm run check-types && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "node ./out/test/runTest.js",
+    "test": "npx rimraf ./out && tsc --outDir ./out && node ./out/test/runTest.js",
     "prepare": "npx husky || true"
   },
   "devDependencies": {

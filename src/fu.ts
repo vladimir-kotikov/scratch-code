@@ -15,10 +15,17 @@ export const prop =
   <T extends Record<K, unknown>>(obj: T): T[K] =>
     obj[key];
 
+export const item = prop;
+
 export const call =
   <K extends PropertyKey, Args extends unknown[]>(key: K, ...args: Args) =>
   <T extends Record<K, Fn<Args>>>(obj: T): ReturnType<T[K]> =>
     obj[key](...args) as ReturnType<T[K]>;
+
+export const filter =
+  <T>(fn: (item: T) => boolean) =>
+  (arr: T[]): T[] =>
+    arr.filter(fn);
 
 export const map =
   <T, U>(fn: (item: T) => U) =>

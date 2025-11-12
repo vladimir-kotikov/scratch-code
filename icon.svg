@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background circle with VSCode blue -->
+  <circle cx="64" cy="64" r="64" fill="#007ACC"/>
+  
+  <!-- Notepad/Document shape with subtle shadow -->
+  <rect x="30" y="24" width="68" height="80" rx="4" fill="#FFFFFF" opacity="0.15"/>
+  <rect x="28" y="22" width="68" height="80" rx="4" fill="#FFFFFF"/>
+  
+  <!-- Lines representing text content -->
+  <line x1="40" y1="38" x2="84" y2="38" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <line x1="40" y1="48" x2="76" y2="48" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <line x1="40" y1="58" x2="82" y2="58" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  <line x1="40" y1="68" x2="70" y2="68" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+  
+  <!-- Scratch/edit marks - representing quick notes and scratches -->
+  <line x1="42" y1="78" x2="58" y2="86" stroke="#FFA500" stroke-width="3" stroke-linecap="round"/>
+  <line x1="48" y1="84" x2="64" y2="92" stroke="#FFA500" stroke-width="3" stroke-linecap="round"/>
+  <line x1="68" y1="80" x2="84" y2="88" stroke="#FFA500" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Small pencil icon in corner to represent quick editing -->
+  <g transform="translate(86, 84) rotate(-45)">
+    <rect x="0" y="0" width="5" height="14" fill="#FFA500"/>
+    <polygon points="0,0 5,0 2.5,-4" fill="#CC7700"/>
+    <rect x="0" y="14" width="5" height="2.5" fill="#333333"/>
+  </g>
+</svg>

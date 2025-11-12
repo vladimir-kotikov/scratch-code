@@ -11,18 +11,21 @@
   <line x1="40" y1="48" x2="76" y2="48" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
   <line x1="40" y1="58" x2="82" y2="58" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
   
-  <!-- Scratched out lines - text with strikethrough to represent scratchpad concept -->
+  <!-- Scratched out lines - text with zigzag strikethrough to represent scratchpad concept -->
   <line x1="40" y1="68" x2="70" y2="68" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
-  <line x1="40" y1="68" x2="70" y2="68" stroke="#3DADFF" stroke-width="2" stroke-linecap="round" transform="translate(0, -0.5)"/>
+  <polyline points="40,66 43,70 46,66 49,70 52,66 55,70 58,66 61,70 64,66 67,70 70,66" 
+            stroke="#3DADFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   
   <line x1="40" y1="78" x2="78" y2="78" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
-  <line x1="40" y1="78" x2="78" y2="78" stroke="#3DADFF" stroke-width="2" stroke-linecap="round" transform="translate(0, -0.5)"/>
+  <polyline points="40,76 43,80 46,76 49,80 52,76 55,80 58,76 61,80 64,76 67,80 70,76 73,80 76,76 78,78" 
+            stroke="#3DADFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   
   <line x1="40" y1="88" x2="65" y2="88" stroke="#007ACC" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
-  <line x1="40" y1="88" x2="65" y2="88" stroke="#3DADFF" stroke-width="2" stroke-linecap="round" transform="translate(0, -0.5)"/>
+  <polyline points="40,86 43,90 46,86 49,90 52,86 55,90 58,86 61,90 64,86 65,87" 
+            stroke="#3DADFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   
-  <!-- Larger pencil icon in corner to represent editing -->
-  <g transform="translate(78, 82) rotate(-45)">
+  <!-- Larger pencil icon shifted to the right to avoid touching paper edge -->
+  <g transform="translate(84, 82) rotate(-45)">
     <rect x="0" y="0" width="8" height="20" rx="1" fill="#FFA500"/>
     <polygon points="0,0 8,0 4,-6" fill="#CC7700"/>
     <rect x="0" y="20" width="8" height="3" fill="#333333"/>

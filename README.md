@@ -76,6 +76,14 @@ Initial release of the extension
 - Quick pick to open scratches
 - Quick search for scratches
 
+### 0.2.1
+
+- Hotfixes
+
+### 0.2.2
+
+- Extension icon added
+
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.

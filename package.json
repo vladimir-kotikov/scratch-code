@@ -64,6 +64,16 @@
         "title": "Open directory",
         "category": "Scratches",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "scratches.sortByName",
+        "title": "Sort by Name",
+        "category": "Scratches"
+      },
+      {
+        "command": "scratches.sortByDate",
+        "title": "Sort by Date",
+        "category": "Scratches"
       }
     ],
     "configuration": {
@@ -100,6 +110,16 @@
           "command": "scratches.newScratch",
           "when": "view == scratches",
           "group": "navigation"
+        },
+        {
+          "command": "scratches.sortByName",
+          "when": "view == scratches",
+          "group": "display"
+        },
+        {
+          "command": "scratches.sortByDate",
+          "when": "view == scratches",
+          "group": "display"
         }
       ],
       "view/item/context": [
@@ -118,7 +138,7 @@
   },
   "scripts": {
     "compile": "npm run check-types && node .esbuild.js",
-    "watch": "npm-run-all -p watch:*",
+    "watch": "npx npm-run-all -p watch:*",
     "check-types": "tsc --noEmit",
     "watch:esbuild": "node .esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",

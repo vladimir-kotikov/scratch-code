@@ -5,8 +5,9 @@ import { Disposable, FileSystemError, Uri } from "vscode";
 import { map, pass, prop, sort, zip } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
-import { Scratch, ScratchTreeProvider } from "./providers/tree";
+import { Scratch, ScratchTreeProvider, SortOrder } from "./providers/tree";
 import { DisposableContainer, readTree } from "./util";
+export { SortOrder } from "./providers/tree";
 
 const extOverrides: Record<string, string> = {
   makefile: "",
@@ -109,6 +110,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   constructor(
     private readonly scratchDir: Uri,
     private readonly storageDir: vscode.Uri,
+    private readonly globalState: vscode.Memento,
   ) {
     super();
 
@@ -123,7 +125,13 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       }),
     );
 
-    this.treeDataProvider = new ScratchTreeProvider(this.fileSystemProvider);
+    this.treeDataProvider = this.disposeLater(
+      new ScratchTreeProvider(
+        this.fileSystemProvider,
+        this.globalState.get("sortOrder", SortOrder.MostRecent),
+      ),
+    );
+
     this.index = this.disposeLater(
       new SearchIndexProvider(
         this.fileSystemProvider,
@@ -320,6 +328,11 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     } catch (e) {
       console.warn(`Error while removing ${uri}`, e);
     }
+  };
+
+  setSortOrder = (order: SortOrder) => {
+    this.treeDataProvider.setSortOrder(order);
+    this.globalState.update("sortOrder", order);
   };
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);

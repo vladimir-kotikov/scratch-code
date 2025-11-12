@@ -32,11 +32,6 @@ export const map =
   (arr: T[]): U[] =>
     arr.map(fn);
 
-export const sort =
-  <T>(compareFn: (a: T, b: T) => number) =>
-  (arr: T[]): T[] =>
-    arr.toSorted(compareFn);
-
 export const flat = <T>(arr: T[][]): T[] => arr.flat();
 
 const isPromiseLike = <P>(p: P | PromiseLike<P>): p is PromiseLike<P> =>
@@ -46,3 +41,23 @@ export const asPromise = <P>(p: P | PromiseLike<P>): PromiseLike<P> =>
   isPromiseLike(p) ? p : Promise.resolve(p);
 
 export const waitPromises = Promise.all.bind(Promise);
+
+export const sort =
+  <T>(compareFn: (a: T, b: T) => number) =>
+  (arr: T[]): T[] =>
+    arr.toSorted(compareFn);
+
+sort.desc =
+  <T>(fn: (a: T, b: T) => number) =>
+  (a: T, b: T) =>
+    -fn(a, b);
+
+sort.byNumericValue =
+  <T>(fn: (a: T) => number) =>
+  (a: T, b: T) =>
+    fn(a) - fn(b);
+
+sort.byStringValue =
+  <T>(fn: (a: T) => string) =>
+  (a: T, b: T) =>
+    fn(a).localeCompare(fn(b));

@@ -1,7 +1,7 @@
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
-import { ScratchExtension, SortOrder } from "./extension";
+import { ScratchExtension } from "./extension";
 
 const scratchUriScheme = "scratch";
 
@@ -42,12 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
     vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
-    vscode.commands.registerCommand("scratches.sortByName", () =>
-      extension.setSortOrder(SortOrder.Alphabetical),
-    ),
-    vscode.commands.registerCommand("scratches.sortByDate", () =>
-      extension.setSortOrder(SortOrder.MostRecent),
-    ),
+    vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     extension,
   );
 }

@@ -66,14 +66,10 @@
         "icon": "$(folder-opened)"
       },
       {
-        "command": "scratches.sortByName",
-        "title": "Sort by Name",
-        "category": "Scratches"
-      },
-      {
-        "command": "scratches.sortByDate",
-        "title": "Sort by Date",
-        "category": "Scratches"
+        "command": "scratches.toggleSort",
+        "title": "Toggle sort order",
+        "category": "Scratches",
+        "icon": "$(graph)"
       }
     ],
     "configuration": {
@@ -112,14 +108,9 @@
           "group": "navigation"
         },
         {
-          "command": "scratches.sortByName",
+          "command": "scratches.toggleSort",
           "when": "view == scratches",
-          "group": "display"
-        },
-        {
-          "command": "scratches.sortByDate",
-          "when": "view == scratches",
-          "group": "display"
+          "group": "navigation"
         }
       ],
       "view/item/context": [

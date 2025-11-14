@@ -5,7 +5,7 @@ import { Disposable, FileSystemError, Uri } from "vscode";
 import { call, map, pass } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
-import { Scratch, ScratchTreeProvider, SortOrder } from "./providers/tree";
+import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "./providers/tree";
 import { DisposableContainer } from "./util";
 export { SortOrder } from "./providers/tree";
 
@@ -317,7 +317,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     }
   };
 
-  setSortOrder = (order: SortOrder) => {
+  toggleSortOrder = () => {
+    const order = (this.treeDataProvider.sortOrder + 1) % SortOrderLength;
     this.treeDataProvider.setSortOrder(order);
     this.globalState.update("sortOrder", order);
   };

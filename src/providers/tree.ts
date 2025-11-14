@@ -57,6 +57,8 @@ export enum SortOrder {
   Alphabetical,
 }
 
+export const SortOrderLength = Object.keys(SortOrder).length / 2;
+
 export class ScratchTreeProvider extends DisposableContainer implements TreeDataProvider<Scratch> {
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -64,7 +66,7 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
 
   constructor(
     private readonly fileSystem: ScratchFileSystemProvider,
-    private sortOrder = SortOrder.MostRecent,
+    private _sortOrder = SortOrder.MostRecent,
   ) {
     super();
     this.disposeLater(this.fileSystem.onDidChangeFile(() => this.reload()));
@@ -107,17 +109,21 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
       )
       .map(apply(Scratch.from));
 
-  getChildren = (element?: Scratch, sortOrder: SortOrder = this.sortOrder) =>
+  getChildren = (element?: Scratch, sortOrder: SortOrder = this._sortOrder) =>
     this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then(
       this.sortAndFilter(sortOrder),
     );
 
-  getFlatTree = (sortOrder: SortOrder = this.sortOrder) =>
+  getFlatTree = (sortOrder: SortOrder = this._sortOrder) =>
     this.readTree().then(this.sortAndFilter(sortOrder));
 
+  get sortOrder(): SortOrder {
+    return this._sortOrder;
+  }
+
   setSortOrder = (order: SortOrder) => {
-    if (order !== this.sortOrder) {
-      this.sortOrder = order;
+    if (order !== this._sortOrder) {
+      this._sortOrder = order;
       this.reload();
     }
   };

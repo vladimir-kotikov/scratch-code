@@ -22,6 +22,11 @@ export const call =
   <T extends Record<K, Fn<Args>>>(obj: T): ReturnType<T[K]> =>
     obj[key](...args) as ReturnType<T[K]>;
 
+export const apply =
+  <T extends unknown[], U>(fn: (...args: T) => U) =>
+  (args: T): U =>
+    fn(...args);
+
 export const filter =
   <T>(fn: (item: T) => boolean) =>
   (arr: T[]): T[] =>

@@ -2,11 +2,11 @@ import langMap from "lang-map";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Disposable, FileSystemError, Uri } from "vscode";
-import { map, pass, prop, sort, zip } from "./fu";
+import { call, map, pass } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import { Scratch, ScratchTreeProvider, SortOrder } from "./providers/tree";
-import { DisposableContainer, readTree } from "./util";
+import { DisposableContainer } from "./util";
 export { SortOrder } from "./providers/tree";
 
 const extOverrides: Record<string, string> = {
@@ -232,22 +232,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   quickOpen = async () => {
-    const allScratchesPromise = readTree(this.fileSystemProvider, ScratchFileSystemProvider.ROOT)
-      .then((entries) =>
-        Promise.all(entries.map(this.fileSystemProvider.stat))
-          .then(map(prop("mtime")))
-          .then(zip(entries))
-          .then(sort<[vscode.Uri, number]>((a, b) => b[1] - a[1]))
-          .then(map(prop(0))),
-      )
-      .then(
-        map((uri) => ({
-          label: uri.path.substring(1),
-          description: uri.toString(),
-          iconPath: vscode.ThemeIcon.File,
-          uri: uri,
-        })),
-      );
+    const allScratchesPromise = this.treeDataProvider
+      .getFlatTree(SortOrder.MostRecent)
+      .then(map(call("toQuickPickItem")));
 
     return vscode.window
       .showQuickPick(allScratchesPromise, {

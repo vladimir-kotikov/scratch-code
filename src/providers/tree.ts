@@ -1,24 +1,32 @@
 import { basename } from "node:path";
+import { match } from "ts-pattern";
 import {
   EventEmitter,
   FileStat,
   FileType,
+  QuickPickItem,
+  ThemeIcon,
   TreeDataProvider,
   TreeItem,
   TreeItemCollapsibleState,
   Uri,
 } from "vscode";
-import { asPromise, item, map, sort, zip } from "../fu";
+import { apply, asPromise, flat, item, map, sort, zip } from "../fu";
 import { DisposableContainer } from "../util";
 import { ScratchFileSystemProvider } from "./fs";
 
 const IGNORED_FILES = new Set([".DS_Store"]);
+
+const isFile = (type: FileType) =>
+  type === FileType.File || type === (FileType.SymbolicLink | FileType.File);
 
 export class Scratch {
   constructor(
     public readonly uri: Uri,
     private readonly stat: FileStat,
   ) {}
+
+  static from = (uri: Uri, stat: FileStat): Scratch => new Scratch(uri, stat);
 
   toTreeItem = (): TreeItem => {
     return {
@@ -35,6 +43,13 @@ export class Scratch {
           : TreeItemCollapsibleState.None,
     };
   };
+
+  toQuickPickItem = (): QuickPickItem & { uri: Uri } => ({
+    label: basename(this.uri.path),
+    description: this.uri.path.substring(1),
+    iconPath: ThemeIcon.File,
+    uri: this.uri,
+  });
 }
 
 export enum SortOrder {
@@ -63,19 +78,42 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
       .then(map((name) => Uri.joinPath(dir, name)))
       .then((uris) => Promise.all(uris.map(this.fileSystem.stat)).then(zip(uris)));
 
+  private readTree = async (
+    parent: Uri = ScratchFileSystemProvider.ROOT,
+  ): Promise<[Uri, FileStat][]> =>
+    this.readDirectory(parent)
+      .then(
+        map(([uri, stat]) =>
+          match(stat.type)
+            .returnType<[Uri, FileStat][] | PromiseLike<[Uri, FileStat][]>>()
+            .with(FileType.Unknown, () => [])
+            .with(FileType.Directory, async () => this.readTree(uri))
+            .when(isFile, () => [[uri, stat]])
+            .otherwise(() => []),
+        ),
+      )
+      .then((ps) => Promise.all(ps))
+      .then(flat);
+
   getTreeItem = (element: Scratch) => element.toTreeItem();
 
-  getChildren = async (element?: Scratch) =>
-    this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then((files) =>
-      files
-        .filter(([uri]) => !IGNORED_FILES.has(basename(uri.path)))
-        .sort(
-          this.sortOrder === SortOrder.MostRecent
-            ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
-            : sort.byStringValue(([uri]) => uri.path),
-        )
-        .map(([uri, stat]) => new Scratch(uri, stat)),
+  private sortAndFilter = (sortOrder: SortOrder) => (entries: [Uri, FileStat][]) =>
+    entries
+      .filter(([uri]) => !IGNORED_FILES.has(basename(uri.path)))
+      .sort(
+        sortOrder === SortOrder.MostRecent
+          ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
+          : sort.byStringValue(([uri]) => uri.path),
+      )
+      .map(apply(Scratch.from));
+
+  getChildren = (element?: Scratch, sortOrder: SortOrder = this.sortOrder) =>
+    this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then(
+      this.sortAndFilter(sortOrder),
     );
+
+  getFlatTree = (sortOrder: SortOrder = this.sortOrder) =>
+    this.readTree().then(this.sortAndFilter(sortOrder));
 
   setSortOrder = (order: SortOrder) => {
     if (order !== this.sortOrder) {

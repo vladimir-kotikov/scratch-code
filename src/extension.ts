@@ -2,9 +2,10 @@ import langMap from "lang-map";
 import * as path from "path";
 import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
-import { Disposable, FileChangeType, FileSystemError, Uri } from "vscode";
+import { Disposable, FileChangeType, Uri } from "vscode";
+import { ScratchController } from "./controller";
 import { map, pass, prop, sort, waitPromises, zip } from "./fu";
-import { PinStore, PIN_STORE_FILENAME } from "./pins";
+import { PIN_STORE_FILENAME, PinStore } from "./pins";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { PinnedScratchTreeProvider, ScratchItem } from "./providers/pinnedTree";
 import { ScratchSearchProvider } from "./providers/search";
@@ -17,7 +18,90 @@ const extOverrides: Record<string, string> = {
   shellscript: "sh",
 };
 
+class UserCancelled extends Error {
+  static error = new UserCancelled();
+  static reject = Promise.reject(UserCancelled.error);
+
+  private constructor() {
+    super("User cancelled the input");
+  }
+}
+
+const askForInput = (title: string, value?: string, placeHolder?: string): PromiseLike<string> =>
+  vscode.window
+    .showInputBox({ title, value: value, placeHolder, ignoreFocusOut: true })
+    .then(res => (res === undefined ? UserCancelled.reject : res));
+
+const askConfirmation = (message: string): PromiseLike<void> =>
+  vscode.window
+    .showInformationMessage(message, { modal: true }, "Yes", "No")
+    .then(selection => (selection === "Yes" ? void 0 : UserCancelled.reject));
+
+const askToPick = (
+  title: string,
+  items: QuickPickScratchItem[] | Thenable<QuickPickScratchItem[]>,
+  options?: vscode.QuickPickOptions & {
+    onDidTriggerItemButton?: (e: vscode.QuickPickItemButtonEvent<QuickPickScratchItem>) => void;
+  },
+): PromiseLike<QuickPickScratchItem> => {
+  const qp = vscode.window.createQuickPick<QuickPickScratchItem>();
+  qp.title = title;
+  qp.ignoreFocusOut = options?.ignoreFocusOut ?? true;
+  qp.matchOnDescription = options?.matchOnDescription ?? false;
+  qp.matchOnDetail = options?.matchOnDetail ?? false;
+  qp.placeholder = options?.placeHolder ?? "";
+
+  const itemsPromise =
+    items instanceof Promise ? items : Promise.resolve<QuickPickScratchItem[]>(items);
+  return itemsPromise.then(res => {
+    qp.items = res;
+    return new Promise<QuickPickScratchItem>((resolve, reject) => {
+      const disposables: vscode.Disposable[] = [];
+      disposables.push(
+        qp.onDidAccept(() => {
+          const picked = qp.selectedItems[0];
+          if (picked) {
+            resolve(picked);
+          } else {
+            reject(UserCancelled.error);
+          }
+          qp.hide();
+        }),
+        qp.onDidHide(() => {
+          reject(UserCancelled.error);
+          disposables.forEach(d => d.dispose());
+        }),
+      );
+      qp.show();
+    });
+  });
+};
+
+const clearDoc = (editor: vscode.TextEditor): PromiseLike<void> =>
+  editor
+    .edit(edit => {
+      edit.delete(new vscode.Selection(0, 0, editor.document.lineCount, 0));
+    })
+    .then(() => vscode.commands.executeCommand("workbench.action.closeActiveEditor"));
+
+const openDoc = (uri: vscode.Uri) => () => vscode.commands.executeCommand("vscode.open", uri);
+
 type QuickPickScratchItem = (vscode.QuickPickItem & { uri: vscode.Uri }) | vscode.QuickPickItem;
+
+const toQuickPickItem = (scratch: Scratch) => ({
+  label: scratch.uri.path.substring(1),
+  description: scratch.uri.toString(),
+  iconPath: vscode.ThemeIcon.File,
+  uri: scratch.uri,
+  isPinned: scratch.isPinned,
+  buttons: [
+    {
+      iconPath: new vscode.ThemeIcon("pin"),
+      tooltip: scratch.isPinned ? "Unpin" : "Pin",
+    },
+  ],
+});
+
 const isScratchEntry = (
   i: QuickPickScratchItem,
 ): i is vscode.QuickPickItem & { uri: vscode.Uri } => {
@@ -118,6 +202,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   private searchWidget: vscode.QuickPick<QuickPickScratchItem>;
   private index: ScratchSearchProvider;
   private searchIndexTimer: NodeJS.Timeout | undefined;
+  private scratches: ScratchController;
 
   constructor(
     private readonly scratchDir: Uri,
@@ -128,6 +213,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     [scratchDir, storageDir].forEach(vscode.workspace.fs.createDirectory);
 
     this.fileSystemProvider = this.disposeLater(new ScratchFileSystemProvider(this.scratchDir));
+
+    this.scratches = new ScratchController(this.fileSystemProvider);
+
     this.pins = this.disposeLater(new PinStore(this.scratchDir));
     this.pins.init();
     this.treeDataProvider = new PinnedScratchTreeProvider(this.fileSystemProvider, this.pins);
@@ -186,72 +274,46 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       })
       .otherwise(c => console.error("Unhandled file change event", c));
 
-  newScratch = async (filename: string, content: string) => {
-    const uri = Uri.parse(`scratch:/${filename}`);
-    let exists = true;
-    try {
-      await this.fileSystemProvider.stat(uri);
-    } catch (e) {
-      if (e instanceof FileSystemError && e.code === "FileNotFound") {
-        exists = false;
-      } else {
-        throw e;
+  private newImpl = async (filename?: string, content: string = ""): Promise<Uri> =>
+    askForInput("Scratch file name", filename).then(filename =>
+      this.scratches
+        .create(filename, content)
+        .catch(err =>
+          err.code === "FileExists"
+            ? askConfirmation("File exists. Overwrite?").then(() =>
+                this.scratches.create(filename, content, { overwrite: true }),
+              )
+            : Promise.reject(err),
+        ),
+    );
+
+  new = async (filename?: string, content: string = ""): Promise<void> =>
+    this.newImpl(filename, content).then(void 0, err => {
+      if (err !== UserCancelled.error) {
+        vscode.window.showErrorMessage(`Failed to create scratch: ${err}`);
       }
-    }
+    });
 
-    if (exists) {
-      const choice = await vscode.window.showInformationMessage(
-        `File ${filename} already exists, overwrite?`,
-        { modal: true },
-        "Yes",
-      );
-
-      if (choice !== "Yes") {
-        return;
-      }
-    }
-
-    await this.fileSystemProvider.writeFile(uri, content, { create: true, overwrite: true });
-    return uri;
-  };
-
-  newScratchFromBuffer = async (): Promise<unknown> => {
+  newFromBuffer = async (): Promise<void> => {
     const editor = vscode.window.activeTextEditor;
     const doc = editor?.document;
     if (!doc) {
-      vscode.window.setStatusBarMessage("No document is open", 10 * 1000);
+      vscode.window.showInformationMessage("No document is open");
       return;
     }
 
     const suggestedFilename = inferFilename(doc);
     const suggestedExtension = inferExtension(doc);
-    const filename = await vscode.window.showInputBox({
-      ignoreFocusOut: true,
-      title: "File name for the new scratch",
-      value: `${suggestedFilename}.${suggestedExtension}`,
-      valueSelection: [0, suggestedFilename.length],
-    });
+    const filename = `${suggestedFilename}.${suggestedExtension}`;
 
-    if (!filename) {
-      return;
-    }
-
-    const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
-    if (doc.isUntitled) {
-      return editor
-        .edit(editBuilder => {
-          selectAll(editor);
-          editBuilder.delete(editor.selection);
-        })
-        .then(() =>
-          Promise.all([
-            vscode.commands.executeCommand("workbench.action.closeActiveEditor"),
-            vscode.commands.executeCommand("vscode.open", scratchUri),
-          ]),
-        );
-    }
-
-    return vscode.commands.executeCommand("vscode.open", scratchUri);
+    return this.newImpl(filename, doc.getText() ?? "").then(
+      uri => (doc.isUntitled ? clearDoc(editor).then(openDoc(uri)) : openDoc(uri)),
+      err => {
+        if (err !== UserCancelled.error) {
+          vscode.window.showErrorMessage(`Failed to create scratch: ${err}`);
+        }
+      },
+    );
   };
 
   private decorateQuickPickItems = (items: QuickPickScratchItem[]): QuickPickScratchItem[] => {
@@ -277,6 +339,29 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       ...otherItems,
     ];
     return result;
+  };
+
+  quickOpen2 = async () => {
+    const reloadItems = () =>
+      this.scratches
+        .getAll()
+        .then(map(toQuickPickItem))
+        .then(partition(prop("isPinned")))
+        .then(([pinned, others]) => [
+          { label: "Pinned", kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+          ...pinned,
+          { label: "Others", kind: vscode.QuickPickItemKind.Separator } as vscode.QuickPickItem,
+          ...others,
+        ]);
+
+    return askToPick("Open Scratch", reloadItems(), {
+      placeHolder: "Type to search scratches...",
+      matchOnDescription: true,
+      onDidTriggerItemButton: ({ quickPick, item }) => {
+        this.scratches.togglePin(item.uri);
+        quickPick.items = reloadItems();
+      },
+    });
   };
 
   quickOpen = async () => {
@@ -486,3 +571,18 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   changeSortOrder = () => this.treeDataProvider.cycleSortOrder();
 }
+
+const partition =
+  <T>(predicate: (item: T) => boolean): ((arr: T[]) => [T[], T[]]) =>
+  (arr: T[]) =>
+    arr.reduce(
+      (acc, item) => {
+        if (predicate(item)) {
+          acc[0].push(item);
+        } else {
+          acc[1].push(item);
+        }
+        return acc;
+      },
+      [[] as T[], [] as T[]],
+    );

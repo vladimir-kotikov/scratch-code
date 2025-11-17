@@ -14,7 +14,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUnusedParameters": true
   },
+  "include": [
+    "src/**/*.ts"
+  ],
   "exclude": [
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "dist"
   ]
 }

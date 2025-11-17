@@ -1,7 +1,10 @@
 import MiniSearch, { Options as SearchOptions, SearchResult } from "minisearch";
+import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
-import { FileSystemProvider, Uri } from "vscode";
-import { asPromise, pass } from "../fu";
+import { FileChangeType, FileSystemProvider, Uri } from "vscode";
+import { asPromise, map, waitPromises } from "../fu";
+import { DisposableContainer, readTree } from "../util";
+import { ScratchFileSystemProvider } from "./fs";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const searchOptions: SearchOptions = {
@@ -28,13 +31,25 @@ const getFirstMatch = (result: SearchResult & SearchDoc) => {
   return;
 };
 
-export class ScratchSearchProvider {
-  searchIndex: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>(searchOptions);
+export class SearchIndexProvider extends DisposableContainer {
+  private hasChanged = false;
+  private saveTimer: NodeJS.Timeout;
+  private index: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>(searchOptions);
 
   constructor(
     private readonly fs: FileSystemProvider,
     private readonly indexFile: Uri,
-  ) {}
+  ) {
+    super();
+    this.disposeLater(this.fs.onDidChangeFile(map(this.updateIndexOnFileChange)));
+    this.saveTimer = setInterval(this.save, 15 * 60 * 1000);
+  }
+
+  dispose(): void {
+    super.dispose();
+    clearInterval(this.saveTimer);
+    this.save();
+  }
 
   private readDocument = (uri: Uri) =>
     asPromise(this.fs.readFile(uri)).then((data) => ({
@@ -43,8 +58,30 @@ export class ScratchSearchProvider {
       content: decoder.decode(data),
     }));
 
+  private addFile = (uri: Uri) =>
+    this.readDocument(uri)
+      .then((data) => this.index.add(data))
+      .then(() => (this.hasChanged = true));
+
+  private updateFile = (uri: Uri) =>
+    this.readDocument(uri)
+      .then((data) => this.index.replace(data))
+      .then(() => (this.hasChanged = true));
+
+  private removeFile = (uri: Uri) => {
+    this.index.discard(uri.path.substring(1));
+    this.hasChanged = true;
+  };
+
+  private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
+    match(change)
+      .with({ type: FileChangeType.Deleted, uri: P.select() }, this.removeFile)
+      .with({ type: FileChangeType.Created, uri: P.select() }, this.addFile)
+      .with({ type: FileChangeType.Changed, uri: P.select() }, this.updateFile)
+      .otherwise((c) => console.error("Unhandled file change event", c));
+
   search = (query: string): (SearchResult & SearchDoc & { textMatch?: string })[] =>
-    this.searchIndex
+    this.index
       .search(query === "" ? MiniSearch.wildcard : query, {
         fuzzy: 0.2,
         prefix: true,
@@ -55,30 +92,25 @@ export class ScratchSearchProvider {
         textMatch: getFirstMatch(result as SearchDoc & SearchResult),
       }));
 
-  loadIndex = () =>
+  load = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
       .then((data) => MiniSearch.loadJSON(data.toString(), searchOptions))
-      .then((index) => (this.searchIndex = index));
+      .then((index) => (this.index = index));
 
-  saveIndex = () =>
-    vscode.workspace.fs.writeFile(
-      this.indexFile,
-      Buffer.from(JSON.stringify(this.searchIndex.toJSON()), "utf8"),
-    );
+  save = () =>
+    this.hasChanged &&
+    vscode.workspace.fs
+      .writeFile(this.indexFile, Buffer.from(JSON.stringify(this.index.toJSON()), "utf8"))
+      .then(() => (this.hasChanged = false));
 
-  addFile = (uri: Uri) =>
-    this.readDocument(uri)
-      .then((data) => this.searchIndex.add(data))
-      .then(pass(uri));
+  reset = () => {
+    this.index.removeAll();
+    this.hasChanged = true;
+    return readTree(this.fs, ScratchFileSystemProvider.ROOT)
+      .then(map(this.addFile))
+      .then(waitPromises)
+      .then(this.save);
+  };
 
-  updateFile = (uri: Uri) =>
-    this.readDocument(uri)
-      .then((data) => this.searchIndex.replace(data))
-      .then(pass(uri));
-
-  removeFile = (uri: Uri) => this.searchIndex.discard(uri.path.substring(1));
-
-  removeAll = () => this.searchIndex.removeAll();
-
-  size = () => this.searchIndex.documentCount;
+  size = () => this.index.documentCount;
 }

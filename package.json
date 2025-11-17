@@ -64,6 +64,12 @@
         "title": "Open directory",
         "category": "Scratches",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "scratches.toggleSort",
+        "title": "Toggle sort order",
+        "category": "Scratches",
+        "icon": "$(graph)"
       }
     ],
     "configuration": {
@@ -92,14 +98,19 @@
     "menus": {
       "view/title": [
         {
-          "command": "scratches.openDirectory",
+          "command": "scratches.toggleSort",
           "when": "view == scratches",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "scratches.newScratch",
           "when": "view == scratches",
-          "group": "navigation"
+          "group": "navigation@2"
+        },
+        {
+          "command": "scratches.openDirectory",
+          "when": "view == scratches",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -118,7 +129,7 @@
   },
   "scripts": {
     "compile": "npm run check-types && node .esbuild.js",
-    "watch": "npm-run-all -p watch:*",
+    "watch": "npx npm-run-all -p watch:*",
     "check-types": "tsc --noEmit",
     "watch:esbuild": "node .esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -126,7 +137,7 @@
     "package": "npm run check-types && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "node ./out/test/runTest.js",
+    "test": "npx rimraf ./out && tsc --outDir ./out && node ./out/test/runTest.js",
     "prepare": "npx husky || true"
   },
   "devDependencies": {

@@ -52,7 +52,7 @@ export class SearchIndexProvider extends DisposableContainer {
   }
 
   private readDocument = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri)).then((data) => ({
+    asPromise(this.fs.readFile(uri)).then(data => ({
       id: uri.path.substring(1),
       path: uri.path.substring(1),
       content: decoder.decode(data),
@@ -60,12 +60,12 @@ export class SearchIndexProvider extends DisposableContainer {
 
   private addFile = (uri: Uri) =>
     this.readDocument(uri)
-      .then((data) => this.index.add(data))
+      .then(data => this.index.add(data))
       .then(() => (this.hasChanged = true));
 
   private updateFile = (uri: Uri) =>
     this.readDocument(uri)
-      .then((data) => this.index.replace(data))
+      .then(data => this.index.replace(data))
       .then(() => (this.hasChanged = true));
 
   private removeFile = (uri: Uri) => {
@@ -78,7 +78,7 @@ export class SearchIndexProvider extends DisposableContainer {
       .with({ type: FileChangeType.Deleted, uri: P.select() }, this.removeFile)
       .with({ type: FileChangeType.Created, uri: P.select() }, this.addFile)
       .with({ type: FileChangeType.Changed, uri: P.select() }, this.updateFile)
-      .otherwise((c) => console.error("Unhandled file change event", c));
+      .otherwise(c => console.error("Unhandled file change event", c));
 
   search = (query: string): (SearchResult & SearchDoc & { textMatch?: string })[] =>
     this.index
@@ -87,15 +87,15 @@ export class SearchIndexProvider extends DisposableContainer {
         prefix: true,
         combineWith: "AND",
       })
-      .map((result) => ({
+      .map(result => ({
         ...(result as SearchDoc & SearchResult),
         textMatch: getFirstMatch(result as SearchDoc & SearchResult),
       }));
 
   load = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
-      .then((data) => MiniSearch.loadJSON(data.toString(), searchOptions))
-      .then((index) => (this.index = index));
+      .then(data => MiniSearch.loadJSON(data.toString(), searchOptions))
+      .then(index => (this.index = index));
 
   save = () =>
     this.hasChanged &&

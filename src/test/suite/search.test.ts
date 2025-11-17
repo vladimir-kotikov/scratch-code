@@ -43,9 +43,9 @@ describe("SearchIndexProvider", () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
-    assert.ok(results.some((r) => r.path === "foo.txt"));
+    assert.ok(results.some(r => r.path === "foo.txt"));
     provider.dispose();
   });
 
@@ -53,12 +53,12 @@ describe("SearchIndexProvider", () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     fs.files["foo.txt"].content = "updated content";
     fs.triggerChange({ type: FileChangeType.Changed, uri: Uri.parse("foo.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     const results = provider.search("updated");
-    assert.ok(results.some((r) => r.path === "foo.txt"));
+    assert.ok(results.some(r => r.path === "foo.txt"));
     provider.dispose();
   });
 
@@ -66,10 +66,10 @@ describe("SearchIndexProvider", () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     fs.files = {}; // Remove all files
     fs.triggerChange({ type: FileChangeType.Deleted, uri: Uri.parse("foo.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
     assert.deepEqual(results, []);
     provider.dispose();
@@ -86,7 +86,7 @@ describe("SearchIndexProvider", () => {
     (util as { readTree: typeof util.readTree }).readTree = () => Promise.resolve(uris);
     await provider.reset();
     const results = provider.search("hello");
-    assert.ok(results.some((r) => r.path === "foo.txt"));
+    assert.ok(results.some(r => r.path === "foo.txt"));
     (util as { readTree: typeof util.readTree }).readTree = origReadTree;
     provider.dispose();
   });
@@ -120,10 +120,10 @@ describe("SearchIndexProvider", () => {
     const provider = new SearchIndexProvider(fs, indexFile());
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("bar.txt") });
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
-    assert.ok(results.some((r) => r.path === "foo.txt"));
-    assert.ok(!results.some((r) => r.path === "bar.txt"));
+    assert.ok(results.some(r => r.path === "foo.txt"));
+    assert.ok(!results.some(r => r.path === "bar.txt"));
     provider.dispose();
   });
 

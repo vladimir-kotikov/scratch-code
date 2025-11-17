@@ -11,7 +11,7 @@ describe("ScratchTreeProvider", () => {
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
     const children = await provider.getChildren();
-    const names = children.map((s) => s.uri.path);
+    const names = children.map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/c.txt", "/a.txt"]);
   });
 
@@ -24,7 +24,7 @@ describe("ScratchTreeProvider", () => {
     const provider = new ScratchTreeProvider(new MockFS(files));
     provider.setSortOrder(SortOrder.Alphabetical);
     const children = await provider.getChildren();
-    const names = children.map((s) => s.uri.path);
+    const names = children.map(s => s.uri.path);
     assert.deepEqual(names, ["/a.txt", "/b.txt", "/c.txt"]);
   });
 
@@ -36,7 +36,7 @@ describe("ScratchTreeProvider", () => {
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
     const children = await provider.getChildren();
-    const names = children.map((s) => s.uri.path);
+    const names = children.map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/a.txt"]);
   });
 
@@ -46,21 +46,21 @@ describe("ScratchTreeProvider", () => {
     // Initial: MostRecent
     let children = await provider.getChildren();
     assert.deepEqual(
-      children.map((s) => s.uri.path),
+      children.map(s => s.uri.path),
       ["/b.txt", "/a.txt"],
     );
     // Toggle to Alphabetical
     provider.setSortOrder((provider.sortOrder + 1) % SortOrderLength);
     children = await provider.getChildren();
     assert.deepEqual(
-      children.map((s) => s.uri.path),
+      children.map(s => s.uri.path),
       ["/a.txt", "/b.txt"],
     );
     // Toggle back to MostRecent
     provider.setSortOrder((provider.sortOrder + 1) % SortOrderLength);
     children = await provider.getChildren();
     assert.deepEqual(
-      children.map((s) => s.uri.path),
+      children.map(s => s.uri.path),
       ["/b.txt", "/a.txt"],
     );
   });

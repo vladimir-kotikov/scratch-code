@@ -141,23 +141,23 @@
     "prepare": "npx husky || true"
   },
   "devDependencies": {
-    "@eslint/js": "^9.38.0",
+    "@eslint/js": "^9.39.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
+    "@types/node": "^24.10.1",
     "@types/sinon": "^17.0.4",
-    "@types/vscode": "^1.105.0",
+    "@types/vscode": "^1.106.1",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.6.2",
+    "@vscode/vsce": "^3.7.0",
     "esbuild": "^0.25.12",
-    "eslint": "^9.38.0",
-    "glob": "^11.0.3",
-    "globals": "^16.4.0",
+    "eslint": "^9.39.1",
+    "glob": "^11.1.0",
+    "globals": "^16.5.0",
     "husky": "^9.1.7",
-    "mocha": "^11.7.4",
+    "mocha": "^11.0.0",
     "prettier": "^3.6.2",
     "sinon": "^21.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3"
+    "typescript-eslint": "^8.47.0"
   },
   "dependencies": {
     "lang-map": "^0.4.0",
@@ -165,6 +165,7 @@
     "ts-pattern": "^5.9.0"
   },
   "prettier": {
-    "printWidth": 100
+    "printWidth": 100,
+    "arrowParens": "avoid"
   }
 }

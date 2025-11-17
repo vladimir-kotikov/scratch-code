@@ -149,7 +149,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
     this.index
       .load()
-      .then(pass, (err) => {
+      .then(pass, err => {
         vscode.window.showWarningMessage(
           `Failed to load scratches search index: ${err}. Rebuilding the index...`,
         );
@@ -216,7 +216,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
     if (doc.isUntitled) {
       return editor
-        .edit((editBuilder) => {
+        .edit(editBuilder => {
           selectAll(editor);
           editBuilder.delete(editor.selection);
         })
@@ -241,12 +241,12 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         placeHolder: "Search scratches...",
         matchOnDescription: true,
       })
-      .then((picked) => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
+      .then(picked => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
   };
 
   quickSearch = async () => {
-    const searchChangedSubscription = this.searchWidget.onDidChangeValue((value) => {
-      this.searchWidget.items = this.index.search(value).map((result) => ({
+    const searchChangedSubscription = this.searchWidget.onDidChangeValue(value => {
+      this.searchWidget.items = this.index.search(value).map(result => ({
         label: result.path,
         detail: result.textMatch,
         iconPath: vscode.ThemeIcon.File,

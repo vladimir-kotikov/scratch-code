@@ -77,8 +77,8 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
   private readDirectory = (dir: Uri) =>
     asPromise(this.fileSystem.readDirectory(dir))
       .then(map(item(0)))
-      .then(map((name) => Uri.joinPath(dir, name)))
-      .then((uris) => Promise.all(uris.map(this.fileSystem.stat)).then(zip(uris)));
+      .then(map(name => Uri.joinPath(dir, name)))
+      .then(uris => Promise.all(uris.map(this.fileSystem.stat)).then(zip(uris)));
 
   private readTree = async (
     parent: Uri = ScratchFileSystemProvider.ROOT,
@@ -94,7 +94,7 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
             .otherwise(() => []),
         ),
       )
-      .then((ps) => Promise.all(ps))
+      .then(ps => Promise.all(ps))
       .then(flat);
 
   getTreeItem = (element: Scratch) => element.toTreeItem();

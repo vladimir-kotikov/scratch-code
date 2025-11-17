@@ -17,7 +17,7 @@ export const readTree = (provider: FileSystemProvider, uri: Uri): PromiseLike<Ur
             : [Uri.joinPath(uri, fileName)];
       }),
     )
-    .then((items) => Promise.all(items))
+    .then(items => Promise.all(items))
     .then(flat);
 
 export class DisposableContainer implements Disposable {

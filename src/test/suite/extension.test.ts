@@ -30,8 +30,8 @@ const buildDoc = ({
     },
     getText: () => lines.join("\n"),
     getWordRangeAtPosition: () => undefined,
-    validateRange: (r) => r,
-    validatePosition: (p) => p,
+    validateRange: r => r,
+    validatePosition: p => p,
     offsetAt: () => 0,
     positionAt: () => ({
       line: 0,

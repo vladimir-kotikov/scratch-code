@@ -23,7 +23,7 @@ export class MockFS extends ScratchFileSystemProvider {
   }
 
   readDirectory = async (_dir: Uri): Promise<[string, FileType][]> =>
-    Object.keys(this.files).map((name) => [name, this.files[name].type ?? FileType.File]);
+    Object.keys(this.files).map(name => [name, this.files[name].type ?? FileType.File]);
 
   stat = async (
     uri: Uri,

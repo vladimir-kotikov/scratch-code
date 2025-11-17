@@ -84,6 +84,11 @@ Initial release of the extension
 
 - Extension icon added
 
+### 0.2.3
+
+- Changeable sort order for tree view
+- Sort quick pick items by modification time
+
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.
@@ -92,5 +97,4 @@ Initial release of the extension
 
 Bugs
 
-- FIXME: Breadcrumbs for scratches not showing the root "Scratches" folder.
 - FIXME: No delete button in the scratchpad explorer view

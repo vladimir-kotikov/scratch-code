@@ -12,7 +12,10 @@ import {
   FileType,
   Uri,
 } from "vscode";
+import { call } from "../fu";
 import { DisposableContainer } from "../util";
+
+const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toString("utf8");
 
 const whenFile = (uri: Uri): Promise<Uri> =>
   new Promise((resolve, reject) => {
@@ -109,6 +112,11 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
 
   readFile = (uri: Uri): Thenable<Uint8Array> =>
     vscode.workspace.fs.readFile(this.toFilesystemUri(uri));
+
+  readLines = (uri: Uri) => this.readFile(uri).then(bytesToString).then(call("split", "\n"));
+
+  writeLines = (uri: Uri, lines: Iterable<string>) =>
+    this.writeFile(uri, Array.from(lines).join("\n") + "\n");
 
   async writeFile(
     uri: Uri,

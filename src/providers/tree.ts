@@ -11,11 +11,14 @@ import {
   TreeItemCollapsibleState,
   Uri,
 } from "vscode";
-import { apply, asPromise, flat, item, map, sort, zip } from "../fu";
+import { asPromise, filter, flat, item, map, pipe, sort, zip } from "../fu";
 import { DisposableContainer } from "../util";
 import { ScratchFileSystemProvider } from "./fs";
+import { PinStore } from "./pinStore";
 
-const IGNORED_FILES = new Set([".DS_Store"]);
+type FileTuple = [Uri, FileStat];
+
+const IGNORED_FILES = new Set([".DS_Store", ".pinstore"]);
 
 const isFile = (type: FileType) =>
   type === FileType.File || type === (FileType.SymbolicLink | FileType.File);
@@ -23,30 +26,29 @@ const isFile = (type: FileType) =>
 export class Scratch {
   constructor(
     public readonly uri: Uri,
-    private readonly stat: FileStat,
+    public isPinned?: boolean,
   ) {}
 
-  static from = (uri: Uri, stat: FileStat): Scratch => new Scratch(uri, stat);
+  static from = (uri: Uri, isPinned: boolean): Scratch => new Scratch(uri, isPinned);
 
-  toTreeItem = (): TreeItem => {
-    return {
-      label: this.uri.path.substring(1),
-      resourceUri: this.uri,
-      command: {
-        command: "vscode.open",
-        title: "Open",
-        arguments: [this.uri],
-      },
-      collapsibleState:
-        this.stat.type === FileType.Directory
-          ? TreeItemCollapsibleState.Collapsed
-          : TreeItemCollapsibleState.None,
-    };
-  };
+  toTreeItem = (): TreeItem => ({
+    label: this.uri.path.substring(1),
+    resourceUri: this.uri,
+    command: {
+      command: "vscode.open",
+      title: "Open",
+      arguments: [this.uri],
+    },
+    description: this.isPinned ? "pinned" : undefined,
+    contextValue: this.isPinned ? "pinned" : "",
+    collapsibleState: TreeItemCollapsibleState.None,
+  });
 
   toQuickPickItem = (): QuickPickItem & { uri: Uri } => ({
     label: basename(this.uri.path),
-    description: this.uri.path.substring(1),
+    description: this.isPinned
+      ? "$(pin) " + this.uri.path.substring(1)
+      : this.uri.path.substring(1),
     iconPath: ThemeIcon.File,
     uri: this.uri,
   });
@@ -63,13 +65,20 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private reload = (item?: Scratch) => this._onDidChangeTreeData.fire(item);
+  private pinStore: PinStore;
 
   constructor(
     private readonly fileSystem: ScratchFileSystemProvider,
     private _sortOrder = SortOrder.MostRecent,
   ) {
     super();
+    this.pinStore = new PinStore(
+      Uri.joinPath(ScratchFileSystemProvider.ROOT, ".pinstore"),
+      this.fileSystem,
+    );
+
     this.disposeLater(this.fileSystem.onDidChangeFile(() => this.reload()));
+    this.disposeLater(this.pinStore.onDidLoad(() => this.reload()));
   }
 
   // Just like an filesystem provider's readDirectory,
@@ -80,14 +89,12 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
       .then(map(name => Uri.joinPath(dir, name)))
       .then(uris => Promise.all(uris.map(this.fileSystem.stat)).then(zip(uris)));
 
-  private readTree = async (
-    parent: Uri = ScratchFileSystemProvider.ROOT,
-  ): Promise<[Uri, FileStat][]> =>
+  private readTree = (parent: Uri = ScratchFileSystemProvider.ROOT): PromiseLike<FileTuple[]> =>
     this.readDirectory(parent)
       .then(
         map(([uri, stat]) =>
           match(stat.type)
-            .returnType<[Uri, FileStat][] | PromiseLike<[Uri, FileStat][]>>()
+            .returnType<FileTuple[] | PromiseLike<FileTuple[]>>()
             .with(FileType.Unknown, () => [])
             .with(FileType.Directory, async () => this.readTree(uri))
             .when(isFile, () => [[uri, stat]])
@@ -97,17 +104,23 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
       .then(ps => Promise.all(ps))
       .then(flat);
 
-  getTreeItem = (element: Scratch) => element.toTreeItem();
-
-  private sortAndFilter = (sortOrder: SortOrder) => (entries: [Uri, FileStat][]) =>
-    entries
-      .filter(([uri]) => !IGNORED_FILES.has(basename(uri.path)))
-      .sort(
+  private sortAndFilter = (sortOrder: SortOrder) =>
+    pipe(
+      filter<FileTuple>(([uri]) => !IGNORED_FILES.has(basename(uri.path))),
+      sort<FileTuple>(
+        sort.desc(sort.byBoolValue(([uri]) => this.pinStore.isPinned(uri))),
         sortOrder === SortOrder.MostRecent
           ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
           : sort.byStringValue(([uri]) => uri.path),
-      )
-      .map(apply(Scratch.from));
+      ),
+      map<FileTuple, Scratch>(([uri]) => {
+        return Scratch.from(uri, this.pinStore.isPinned(uri));
+      }),
+    );
+
+  getTreeItem = (element: Scratch) => {
+    return element.toTreeItem();
+  };
 
   getChildren = (element?: Scratch, sortOrder: SortOrder = this._sortOrder) =>
     this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then(
@@ -117,6 +130,8 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
   getFlatTree = (sortOrder: SortOrder = this._sortOrder) =>
     this.readTree().then(this.sortAndFilter(sortOrder));
 
+  getItem = (uri?: Uri) => (uri ? new Scratch(uri, this.pinStore.isPinned(uri)) : undefined);
+
   get sortOrder(): SortOrder {
     return this._sortOrder;
   }
@@ -124,6 +139,20 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
   setSortOrder = (order: SortOrder) => {
     if (order !== this._sortOrder) {
       this._sortOrder = order;
+      this.reload();
+    }
+  };
+
+  pinScratch = (scratch?: Scratch) => {
+    if (scratch) {
+      this.pinStore.pin(scratch.uri);
+      this.reload();
+    }
+  };
+
+  unpinScratch = (scratch?: Scratch) => {
+    if (scratch) {
+      this.pinStore.unpin(scratch.uri);
       this.reload();
     }
   };

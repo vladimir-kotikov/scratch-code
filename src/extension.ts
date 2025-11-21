@@ -324,4 +324,12 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
+
+  pinScratch = async (scratch?: Scratch) =>
+    this.treeDataProvider.pinScratch(scratch ?? this.treeDataProvider.getItem(currentScratchUri()));
+
+  unpinScratch = async (scratch?: Scratch) =>
+    this.treeDataProvider.unpinScratch(
+      scratch ?? this.treeDataProvider.getItem(currentScratchUri()),
+    );
 }

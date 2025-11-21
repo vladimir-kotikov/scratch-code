@@ -70,6 +70,18 @@
         "title": "Toggle sort order",
         "category": "Scratches",
         "icon": "$(graph)"
+      },
+      {
+        "command": "scratches.pin",
+        "title": "Pin",
+        "category": "Scratches",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "scratches.unpin",
+        "title": "Unpin",
+        "category": "Scratches",
+        "icon": "$(pinned)"
       }
     ],
     "configuration": {
@@ -123,6 +135,16 @@
           "command": "scratches.deleteScratch",
           "when": "view == scratches",
           "group": "2_deletion"
+        },
+        {
+          "command": "scratches.pin",
+          "when": "view == scratches && viewItem != 'pinned'",
+          "group": "inline"
+        },
+        {
+          "command": "scratches.unpin",
+          "when": "view == scratches && viewItem == 'pinned'",
+          "group": "inline"
         }
       ]
     }

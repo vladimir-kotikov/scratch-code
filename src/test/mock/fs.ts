@@ -45,6 +45,23 @@ export class MockFS extends ScratchFileSystemProvider {
     return this.fileBuffers[name];
   };
 
+  readLines = async (uri: Uri): Promise<string[]> => {
+    const name = uri.path.replace(/^\//, "");
+    if (!(name in this.files)) return [];
+    return (this.files[name].content ?? "").split("\n");
+  };
+
+  writeLines = async (uri: Uri, lines: Iterable<string>): Promise<void> => {
+    const name = uri.path.replace(/^\//, "");
+    const content = Array.from(lines).join("\n") + "\n";
+    if (this.files[name]) {
+      this.files[name].content = content;
+    } else {
+      this.files[name] = { content };
+    }
+    this.syncBuffers();
+  };
+
   triggerChange = (event: FileChangeEvent) => {
     this.syncBuffers();
     this._onDidChangeFileEmitter.fire([event]);

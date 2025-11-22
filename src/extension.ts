@@ -69,10 +69,13 @@ const selectAll = (editor: vscode.TextEditor): void => {
   );
 };
 
-const inferExtension = (doc: vscode.TextDocument): string =>
-  doc.isUntitled
-    ? (extOverrides[doc.languageId] ?? langMap.extensions(doc.languageId)[0])
-    : path.extname(doc.fileName);
+export const inferExtension = (doc: vscode.TextDocument): string => {
+  if (doc.isUntitled) {
+    const ext = extOverrides[doc.languageId] ?? langMap.extensions(doc.languageId)[0];
+    return ext ? `.${ext}` : "";
+  }
+  return path.extname(doc.fileName);
+};
 
 export const inferFilename = (doc: vscode.TextDocument): string => {
   // The heuristic to infer a filename is:
@@ -212,7 +215,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     const filename = await vscode.window.showInputBox({
       ignoreFocusOut: true,
       title: "File name for the new scratch",
-      value: `${suggestedFilename}.${suggestedExtension}`,
+      value: `${suggestedFilename}${suggestedExtension}`,
       valueSelection: [0, suggestedFilename.length],
     });
 

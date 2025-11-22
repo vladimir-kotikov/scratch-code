@@ -23,6 +23,10 @@ const IGNORED_FILES = new Set([".DS_Store", ".pinstore"]);
 const isFile = (type: FileType) =>
   type === FileType.File || type === (FileType.SymbolicLink | FileType.File);
 
+export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
+
+const ICON_PIN = new ThemeIcon("pinned");
+const ICON_UNPIN = new ThemeIcon("pin");
 export class Scratch {
   constructor(
     public readonly uri: Uri,
@@ -44,13 +48,22 @@ export class Scratch {
     collapsibleState: TreeItemCollapsibleState.None,
   });
 
-  toQuickPickItem = (): QuickPickItem & { uri: Uri } => ({
+  toQuickPickItem = (): ScratchQuickPickItem => ({
     label: basename(this.uri.path),
-    description: this.isPinned
-      ? "$(pin) " + this.uri.path.substring(1)
-      : this.uri.path.substring(1),
+    description: this.uri.path.substring(1),
     iconPath: ThemeIcon.File,
-    uri: this.uri,
+    buttons: [
+      this.isPinned
+        ? {
+            iconPath: ICON_PIN,
+            tooltip: "Unpin scratch",
+          }
+        : {
+            iconPath: ICON_UNPIN,
+            tooltip: "Pin scratch",
+          },
+    ],
+    scratch: this,
   });
 }
 

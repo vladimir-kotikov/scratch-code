@@ -58,6 +58,14 @@ export const reduce =
 
 export const flat = <T>(arr: T[][]): T[] => arr.flat();
 
+export const split = <T>(
+  predicate: (item: T, index: number) => boolean,
+  items: T[],
+): [T[], T[]] => {
+  const ind = items.findIndex(predicate);
+  return [items.slice(0, ind), items.slice(ind)];
+};
+
 export const pipe = <T extends Fns>(...fns: T): Pipe<T> =>
   (value => fns.reduce((acc, fn) => fn(acc), value)) as Pipe<T>;
 

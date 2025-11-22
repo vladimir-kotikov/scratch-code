@@ -1,11 +1,18 @@
 import langMap from "lang-map";
 import * as path from "path";
+import { match } from "ts-pattern";
 import * as vscode from "vscode";
 import { Disposable, FileSystemError, Uri } from "vscode";
-import { call, map, pass } from "./fu";
+import { call, map, pass, split } from "./fu";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
-import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "./providers/tree";
+import {
+  Scratch,
+  ScratchQuickPickItem,
+  ScratchTreeProvider,
+  SortOrder,
+  SortOrderLength,
+} from "./providers/tree";
 import { DisposableContainer } from "./util";
 export { SortOrder } from "./providers/tree";
 
@@ -232,16 +239,65 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   quickOpen = async () => {
-    const allScratchesPromise = this.treeDataProvider
-      .getFlatTree(SortOrder.MostRecent)
-      .then(map(call("toQuickPickItem")));
+    const picker = vscode.window.createQuickPick<ScratchQuickPickItem>();
 
-    return vscode.window
-      .showQuickPick(allScratchesPromise, {
-        placeHolder: "Search scratches...",
-        matchOnDescription: true,
-      })
-      .then(picked => picked && vscode.commands.executeCommand("vscode.open", picked.uri));
+    const reload = (
+      picker: vscode.QuickPick<
+        ScratchQuickPickItem | { label: string; kind: vscode.QuickPickItemKind.Separator }
+      >,
+    ) => {
+      picker.placeholder = "Loading scratches...";
+      picker.busy = true;
+      this.treeDataProvider
+        .getFlatTree(this.treeDataProvider.sortOrder)
+        .then(map(scratch => scratch.toQuickPickItem()))
+        .then(items => {
+          const [pinned, unpinned] = split(item => !item.scratch.isPinned, items);
+          if (pinned.length > 0 && unpinned.length > 0) {
+            return [
+              ...pinned,
+              {
+                label: "Scratches",
+                kind: vscode.QuickPickItemKind.Separator as const,
+              },
+              ...unpinned,
+            ];
+          }
+          return items;
+        })
+        .then(items => {
+          picker.items = items;
+          picker.placeholder = "Select a scratch to open";
+          picker.busy = false;
+        });
+    };
+
+    const disposables: Disposable[] = [
+      picker,
+      picker.onDidAccept(() => {
+        const picked = picker.selectedItems[0];
+        if (picked) {
+          vscode.commands.executeCommand("vscode.open", picked.scratch.uri);
+        }
+        picker.hide();
+      }),
+      picker.onDidTriggerItemButton(e =>
+        match(e.button.tooltip)
+          .with("Pin scratch", () => {
+            this.pinScratch(e.item.scratch);
+            reload(picker);
+          })
+          .with("Unpin scratch", () => {
+            this.unpinScratch(e.item.scratch);
+            reload(picker);
+          })
+          .otherwise(pass),
+      ),
+      picker.onDidHide(() => disposables.forEach(call("dispose"))),
+    ];
+
+    picker.show();
+    reload(picker);
   };
 
   quickSearch = async () => {

@@ -89,6 +89,10 @@ Initial release of the extension
 - Changeable sort order for tree view
 - Sort quick pick items by modification time
 
+### 0.2.4
+
+- Allow pinning scratches in the explorer view and quick pick
+
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.

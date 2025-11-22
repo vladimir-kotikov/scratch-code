@@ -2,7 +2,7 @@
   "name": "scratch-code",
   "displayName": "scratch-code",
   "description": "Scratchpad for VSCode",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -167,7 +167,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.10.1",
     "@types/sinon": "^17.0.4",
-    "@types/vscode": "^1.106.1",
+    "@types/vscode": "^1.105.0",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.0",
     "esbuild": "^0.25.12",

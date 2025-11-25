@@ -1,9 +1,10 @@
 import langMap from "lang-map";
 import * as path from "path";
-import { match } from "ts-pattern";
 import * as vscode from "vscode";
 import { Disposable, FileSystemError, Uri } from "vscode";
-import { call, map, pass, split } from "./fu";
+import { map } from "./fu";
+import * as prompt from "./prompt";
+import { NoSeparator, WithSeparator } from "./prompt";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import {
@@ -20,7 +21,17 @@ const extOverrides: Record<string, string> = {
   makefile: "",
   ignore: "",
   plaintext: "",
+  shellscript: "sh",
 };
+
+const separator = {
+  label: "Scratches",
+  kind: vscode.QuickPickItemKind.Separator as const,
+} as WithSeparator<ScratchQuickPickItem>;
+
+const openDocument = (uri?: Uri) => uri && vscode.commands.executeCommand("vscode.open", uri);
+
+const closeEditor = () => vscode.commands.executeCommand("workbench.action.closeActiveEditor");
 
 const stripChars = (str: string, chars: string): string => {
   let start = 0;
@@ -101,6 +112,15 @@ export const inferFilename = (doc: vscode.TextDocument): string => {
   return baseName;
 };
 
+type Predicate<T> = (item: T, index: number, array: T[]) => boolean;
+
+const insertBefore =
+  <T>(predicate: Predicate<T>, item: T) =>
+  (arr: T[]) => {
+    const index = arr.findIndex(predicate);
+    return index !== -1 ? arr.toSpliced(index, 0, item) : arr;
+  };
+
 function currentScratchUri(): Uri | undefined {
   const maybeUri = vscode.window.activeTextEditor?.document.uri;
   return maybeUri?.scheme === "scratch" ? maybeUri : undefined;
@@ -114,7 +134,6 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
 
-  private searchWidget: vscode.QuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>;
   private index: SearchIndexProvider;
 
   constructor(
@@ -149,29 +168,32 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       ),
     );
 
-    this.searchWidget = this.disposeLater(
-      vscode.window.createQuickPick<vscode.QuickPickItem & { uri: vscode.Uri }>(),
-    );
-    this.searchWidget.placeholder = "Search scratches...";
-    this.searchWidget.busy = true;
-    this.searchWidget.matchOnDescription = true;
-    this.searchWidget.matchOnDetail = true;
+    this.index.onDidLoad(() => prompt.info(`Index ready, ${this.index.size()} documents in index`));
 
-    this.index
-      .load()
-      .then(pass, err => {
-        vscode.window.showWarningMessage(
-          `Failed to load scratches search index: ${err}. Rebuilding the index...`,
-        );
-        return this.index.reset();
-      })
-      .then(() => {
-        this.searchWidget.busy = false;
-        vscode.window.showInformationMessage(
-          "Scratches: search index loaded, documents: " + this.index.size(),
-        );
-      });
+    this.index.onLoadError(err => {
+      this.index.reset();
+      prompt.warn(`Index corrupted (${err}). Rebuilding...`);
+    });
   }
+
+  private getQuickPickItems = () =>
+    this.treeDataProvider
+      .getFlatTree(this.treeDataProvider.sortOrder)
+      .then(map(scratch => scratch.toQuickPickItem()))
+      .then(
+        insertBefore(
+          (item, i) => !(item as NoSeparator<ScratchQuickPickItem>).scratch.isPinned && i > 0,
+          separator,
+        ),
+      );
+
+  private getQuickSearchItems = (value?: string) =>
+    this.index.search(value ?? "").map(result => ({
+      label: result.path,
+      detail: result.textMatch,
+      iconPath: vscode.ThemeIcon.File,
+      uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
+    }));
 
   newScratch = async (filename: string, content: string) => {
     const uri = Uri.parse(`scratch:/${filename}`);
@@ -206,8 +228,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     const editor = vscode.window.activeTextEditor;
     const doc = editor?.document;
     if (!doc) {
-      vscode.window.setStatusBarMessage("No document is open", 10 * 1000);
-      return;
+      return prompt.info("No document is open");
     }
 
     const suggestedFilename = inferFilename(doc);
@@ -233,93 +254,30 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         .then(() =>
           Promise.all([
             vscode.commands.executeCommand("workbench.action.closeActiveEditor"),
-            vscode.commands.executeCommand("vscode.open", scratchUri),
+            openDocument(scratchUri),
           ]),
         );
     }
 
-    return vscode.commands.executeCommand("vscode.open", scratchUri);
+    return openDocument(scratchUri);
   };
 
-  quickOpen = async () => {
-    const picker = vscode.window.createQuickPick<ScratchQuickPickItem>();
-
-    const reload = (
-      picker: vscode.QuickPick<
-        ScratchQuickPickItem | { label: string; kind: vscode.QuickPickItemKind.Separator }
-      >,
-    ) => {
-      picker.placeholder = "Loading scratches...";
-      picker.busy = true;
-      this.treeDataProvider
-        .getFlatTree(this.treeDataProvider.sortOrder)
-        .then(map(scratch => scratch.toQuickPickItem()))
-        .then(items => {
-          const [pinned, unpinned] = split(item => !item.scratch.isPinned, items);
-          if (pinned.length > 0 && unpinned.length > 0) {
-            return [
-              ...pinned,
-              {
-                label: "Scratches",
-                kind: vscode.QuickPickItemKind.Separator as const,
-              },
-              ...unpinned,
-            ];
-          }
-          return items;
-        })
-        .then(items => {
-          picker.items = items;
-          picker.placeholder = "Select a scratch to open";
-          picker.busy = false;
-        });
-    };
-
-    const disposables: Disposable[] = [
-      picker,
-      picker.onDidAccept(() => {
-        const picked = picker.selectedItems[0];
-        if (picked) {
-          vscode.commands.executeCommand("vscode.open", picked.scratch.uri);
-        }
-        picker.hide();
-      }),
-      picker.onDidTriggerItemButton(e =>
-        match(e.button.tooltip)
-          .with("Pin scratch", () => {
-            this.pinScratch(e.item.scratch);
-            reload(picker);
-          })
-          .with("Unpin scratch", () => {
-            this.unpinScratch(e.item.scratch);
-            reload(picker);
-          })
-          .otherwise(pass),
-      ),
-      picker.onDidHide(() => disposables.forEach(call("dispose"))),
-    ];
-
-    picker.show();
-    reload(picker);
-  };
-
-  quickSearch = async () => {
-    const searchChangedSubscription = this.searchWidget.onDidChangeValue(value => {
-      this.searchWidget.items = this.index.search(value).map(result => ({
-        label: result.path,
-        detail: result.textMatch,
-        iconPath: vscode.ThemeIcon.File,
-        uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
-      }));
+  quickOpen = () =>
+    prompt.pick<WithSeparator<ScratchQuickPickItem>>(this.getQuickPickItems, {
+      onDidSelectItem: item => openDocument(item?.scratch.uri),
+      buttons: {
+        "Pin scratch": item => this.pinScratch(item.scratch),
+        "Unpin scratch": item => this.unpinScratch(item.scratch),
+      },
     });
 
-    this.searchWidget.onDidAccept(async () => {
-      searchChangedSubscription.dispose();
-      vscode.commands.executeCommand("vscode.open", this.searchWidget.selectedItems[0].uri);
+  quickSearch = () =>
+    prompt.pick<vscode.QuickPickItem & { uri: vscode.Uri }>(this.getQuickSearchItems, {
+      onDidSelectItem: item => openDocument(item?.uri),
+      onDidChangeValue: this.getQuickSearchItems,
+      matchOnDescription: true,
+      matchOnDetail: true,
     });
-
-    this.searchWidget.show();
-  };
 
   resetIndex = async () =>
     this.index
@@ -355,8 +313,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     // If there was no scratch then we just renamed a scratch opened in the
     // current editor so close it and reopen with the new name
     if (!scratch) {
-      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-      await vscode.commands.executeCommand("vscode.open", newUri);
+      await closeEditor();
+      await openDocument(newUri);
     }
   };
 
@@ -369,7 +327,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     try {
       await this.fileSystemProvider.delete(uri);
       if (!scratch) {
-        await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+        await closeEditor();
       }
     } catch (e) {
       console.warn(`Error while removing ${uri}`, e);

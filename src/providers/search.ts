@@ -36,6 +36,12 @@ export class SearchIndexProvider extends DisposableContainer {
   private saveTimer: NodeJS.Timeout;
   private index: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>(searchOptions);
 
+  private _onDidLoad = this.disposeLater(new vscode.EventEmitter<void>());
+  private _onLoadError = this.disposeLater(new vscode.EventEmitter<Error>());
+
+  readonly onDidLoad = this._onDidLoad.event;
+  readonly onLoadError = this._onLoadError.event;
+
   constructor(
     private readonly fs: FileSystemProvider,
     private readonly indexFile: Uri,
@@ -95,7 +101,11 @@ export class SearchIndexProvider extends DisposableContainer {
   load = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
       .then(data => MiniSearch.loadJSON(data.toString(), searchOptions))
-      .then(index => (this.index = index));
+      .then(index => {
+        this.index = index;
+        this._onDidLoad.fire();
+      })
+      .catch(err => this._onLoadError.fire(err));
 
   save = () =>
     this.hasChanged &&

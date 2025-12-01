@@ -11,6 +11,8 @@ export class UserCancelled extends Error {
   }
 }
 
+export const isUserCancelled = (err: unknown): err is UserCancelled => err instanceof UserCancelled;
+
 type Separator = {
   label: string;
   kind: vscode.QuickPickItemKind.Separator;
@@ -20,20 +22,19 @@ export type NoSeparator<T extends QuickPickItem> = Exclude<T, Separator>;
 export type WithSeparator<T extends QuickPickItem> = T | Separator;
 
 export const info = (message: string) =>
-  vscode.window.showInformationMessage("Scratches: " + message).then();
+  vscode.window.showInformationMessage("Scratches: " + message);
 
-export const warn = (message: string) =>
-  vscode.window.showWarningMessage("Scratches: " + message).then();
+export const warn = (message: string) => vscode.window.showWarningMessage("Scratches: " + message);
 
 export const input = (title: string, value?: string, placeHolder?: string): PromiseLike<string> =>
   vscode.window
     .showInputBox({ title, value: value, placeHolder, ignoreFocusOut: true })
     .then(res => (res === undefined ? UserCancelled.reject : res));
 
-export const confirm = (message: string): PromiseLike<void> =>
-  vscode.window
-    .showInformationMessage(message, { modal: true }, "Yes", "No")
-    .then(selection => (selection === "Yes" ? void 0 : UserCancelled.reject));
+export const confirm = (message: string) =>
+  asPromise(vscode.window.showInformationMessage(message, { modal: true }, "Yes", "No")).then(
+    selection => (selection === "Yes" ? void 0 : UserCancelled.reject),
+  );
 
 export const pick = <T extends QuickPickItem>(
   getItems: () => PromiseLike<T[]> | T[],

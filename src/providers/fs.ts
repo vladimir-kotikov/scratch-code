@@ -12,10 +12,21 @@ import {
   FileType,
   Uri,
 } from "vscode";
-import { call } from "../fu";
-import { DisposableContainer } from "../util";
+import { asPromise, call } from "../fu";
+import { DisposableContainer, whenError } from "../util";
 
 const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toString("utf8");
+
+const isFileSystemError = (err: unknown): err is FileSystemError => err instanceof FileSystemError;
+
+const isNotFoundError = (err: unknown): boolean =>
+  isFileSystemError(err) && err.code === "FileNotFound";
+
+export const isFileExistsError = (err: unknown): boolean =>
+  isFileSystemError(err) && err.code === "FileExists";
+
+const isFile = (stat: FileStat): boolean =>
+  stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
 
 const whenFile = (uri: Uri): Promise<Uri> =>
   new Promise((resolve, reject) => {
@@ -118,54 +129,48 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   writeLines = (uri: Uri, lines: Iterable<string>) =>
     this.writeFile(uri, Array.from(lines).join("\n") + "\n");
 
-  async writeFile(
+  writeFile = (
     uri: Uri,
     content?: Uint8Array | string,
     options: {
       readonly create: boolean;
       readonly overwrite: boolean;
     } = { create: true, overwrite: true },
-  ): Promise<void> {
-    if (content === undefined) {
-      content = new Uint8Array(0);
-    }
-
-    if (typeof content === "string") {
-      content = Buffer.from(content, "utf8");
-    }
-
-    const events: FileChangeEvent[] = [];
-
-    try {
-      const stat = await this.stat(uri);
-      if (!options.overwrite) {
-        throw FileSystemError.FileExists(uri);
-      }
-
-      const isFile =
-        stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
-      if (!isFile) {
-        throw FileSystemError.FileIsADirectory(uri);
-      }
-
-      events.push({ type: FileChangeType.Changed, uri });
-      await vscode.workspace.fs.writeFile(this.toFilesystemUri(uri), content);
-    } catch (e) {
-      if (e instanceof FileSystemError && e.code === "FileNotFound") {
-        if (options.create) {
-          events.push({ type: FileChangeType.Created, uri });
-          await vscode.workspace.fs.writeFile(this.toFilesystemUri(uri), content);
-        } else {
-          throw FileSystemError.FileExists(uri);
-        }
-      } else {
-        throw FileSystemError.NoPermissions(uri);
-      }
-    }
-
-    await vscode.workspace.fs.writeFile(this.toFilesystemUri(uri), content);
-    this._onDidChangeFile.fire(events);
-  }
+  ) =>
+    asPromise(this.stat(uri))
+      .then(
+        stat => {
+          if (!options.overwrite) {
+            throw FileSystemError.FileExists(uri);
+          }
+          if (!isFile(stat)) {
+            throw FileSystemError.FileIsADirectory(uri);
+          }
+          return { type: FileChangeType.Changed, uri };
+        },
+        whenError(
+          err => isNotFoundError(err) && options.create,
+          () => ({ type: FileChangeType.Created, uri }),
+        ),
+      )
+      .then(event =>
+        asPromise(
+          vscode.workspace.fs.writeFile(
+            this.toFilesystemUri(uri),
+            typeof content === "string"
+              ? Buffer.from(content, "utf8")
+              : (content ?? new Uint8Array(0)),
+          ),
+        )
+          .then(() => this._onDidChangeFile.fire([event]))
+          .catch(
+            whenError(isFileSystemError, err => {
+              // Make sure the real fs uri is not leaked
+              (err as FileSystemError).message = this.toFilesystemUri(uri).toString();
+              throw err;
+            }),
+          ),
+      );
 
   async delete(uri: Uri, options?: { readonly recursive: boolean }): Promise<void> {
     await vscode.workspace.fs.delete(this.toFilesystemUri(uri), options);

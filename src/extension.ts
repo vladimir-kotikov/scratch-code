@@ -1,11 +1,11 @@
 import langMap from "lang-map";
 import * as path from "path";
 import * as vscode from "vscode";
-import { Disposable, FileSystemError, Uri } from "vscode";
-import { map } from "./fu";
+import { Disposable, Uri } from "vscode";
+import { map, pass, waitPromises } from "./fu";
 import * as prompt from "./prompt";
-import { NoSeparator, WithSeparator } from "./prompt";
-import { ScratchFileSystemProvider } from "./providers/fs";
+import { isUserCancelled, NoSeparator, WithSeparator } from "./prompt";
+import { isFileExistsError, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import {
   Scratch,
@@ -14,7 +14,7 @@ import {
   SortOrder,
   SortOrderLength,
 } from "./providers/tree";
-import { DisposableContainer } from "./util";
+import { DisposableContainer, whenError } from "./util";
 export { SortOrder } from "./providers/tree";
 
 const extOverrides: Record<string, string> = {
@@ -28,6 +28,12 @@ const separator = {
   label: "Scratches",
   kind: vscode.QuickPickItemKind.Separator as const,
 } as WithSeparator<ScratchQuickPickItem>;
+
+const splitLines = (text: string) =>
+  text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
 
 const openDocument = (uri?: Uri) => uri && vscode.commands.executeCommand("vscode.open", uri);
 
@@ -133,8 +139,7 @@ function currentScratchUri(): Uri | undefined {
 export class ScratchExtension extends DisposableContainer implements Disposable {
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
-
-  private index: SearchIndexProvider;
+  private readonly index: SearchIndexProvider;
 
   constructor(
     private readonly scratchDir: Uri,
@@ -146,7 +151,6 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     [scratchDir, storageDir].forEach(vscode.workspace.fs.createDirectory);
 
     this.fileSystemProvider = this.disposeLater(new ScratchFileSystemProvider(this.scratchDir));
-
     this.disposeLater(
       // start watcher so other components can rely on it being active
       this.fileSystemProvider.watch(ScratchFileSystemProvider.ROOT, {
@@ -161,19 +165,32 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       ),
     );
 
+    this.disposeLater(
+      vscode.window.createTreeView("scratches", {
+        treeDataProvider: this.treeDataProvider,
+        dragAndDropController: {
+          dragMimeTypes: [],
+          dropMimeTypes: ["text/uri-list", "text/plain"],
+          handleDrop: this.handleDrop,
+        },
+      }),
+    );
+
     this.index = this.disposeLater(
       new SearchIndexProvider(
         this.fileSystemProvider,
         Uri.joinPath(this.storageDir, "searchIndex.json"),
       ),
     );
-
-    this.index.onDidLoad(() => prompt.info(`Index ready, ${this.index.size()} documents in index`));
-
-    this.index.onLoadError(err => {
-      this.index.reset();
-      prompt.warn(`Index corrupted (${err}). Rebuilding...`);
-    });
+    this.disposables.push(
+      this.index.onDidLoad(() =>
+        prompt.info(`Index ready, ${this.index.size()} documents in index`),
+      ),
+      this.index.onLoadError(err => {
+        this.index.reset();
+        prompt.warn(`Index corrupted (${err}). Rebuilding...`);
+      }),
+    );
   }
 
   private getQuickPickItems = () =>
@@ -195,36 +212,38 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
     }));
 
-  newScratch = async (filename: string, content: string) => {
-    const uri = Uri.parse(`scratch:/${filename}`);
-    let exists = true;
-    try {
-      await this.fileSystemProvider.stat(uri);
-    } catch (e) {
-      if (e instanceof FileSystemError && e.code === "FileNotFound") {
-        exists = false;
-      } else {
-        throw e;
-      }
-    }
-
-    if (exists) {
-      const choice = await vscode.window.showInformationMessage(
-        `File ${filename} already exists, overwrite?`,
-        { modal: true },
-        "Yes",
-      );
-
-      if (choice !== "Yes") {
-        return;
-      }
-    }
-
-    await this.fileSystemProvider.writeFile(uri, content, { create: true, overwrite: true });
-    return uri;
+  private handleDrop = (_target: Scratch | undefined, dataTransfer: vscode.DataTransfer) => {
+    const file = dataTransfer.get("text/plain")?.asFile();
+    return file
+      ? file.data().then(data => this.newScratch(file.name, data))
+      : dataTransfer
+          .get("text/uri-list")
+          ?.asString()
+          .then(uris =>
+            splitLines(uris)
+              .map(line => Uri.parse(line))
+              .filter(uri => uri.scheme !== "scratch")
+              .map(uri => this.newScratchFromFile(uri)),
+          )
+          .then(waitPromises)
+          .then(pass());
   };
 
-  newScratchFromBuffer = async (): Promise<unknown> => {
+  newScratch = async (filename: string, content: string | Uint8Array) => {
+    const uri = Uri.parse(`scratch:/${filename}`);
+    return this.fileSystemProvider
+      .writeFile(uri, content, { create: true, overwrite: false })
+      .catch(
+        whenError(isFileExistsError, () =>
+          prompt
+            .confirm(`File ${filename} already exists, overwrite?`)
+            .then(() => this.fileSystemProvider.writeFile(uri, content)),
+        ),
+      )
+      .catch(whenError(isUserCancelled, pass()));
+  };
+
+  newScratchFromBuffer = async () => {
     const editor = vscode.window.activeTextEditor;
     const doc = editor?.document;
     if (!doc) {
@@ -244,23 +263,27 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       return;
     }
 
-    const scratchUri = await this.newScratch(filename, doc.getText() ?? "");
+    const scratchUri = Uri.parse("scratch:/" + filename);
+    await this.newScratch(filename, doc.getText() ?? "");
     if (doc.isUntitled) {
       return editor
         .edit(editBuilder => {
           selectAll(editor);
           editBuilder.delete(editor.selection);
         })
-        .then(() =>
-          Promise.all([
-            vscode.commands.executeCommand("workbench.action.closeActiveEditor"),
-            openDocument(scratchUri),
-          ]),
-        );
+        .then(() => Promise.all([closeEditor(), openDocument(scratchUri)]))
+        .then();
     }
 
     return openDocument(scratchUri);
   };
+
+  private newScratchFromFile = async (uri: Uri) =>
+    uri.fsPath === "/"
+      ? this.newScratchFromBuffer()
+      : vscode.workspace.fs
+          .readFile(uri)
+          .then(content => this.newScratch(path.basename(uri.path), content));
 
   quickOpen = () =>
     prompt.pick<WithSeparator<ScratchQuickPickItem>>(this.getQuickPickItems, {

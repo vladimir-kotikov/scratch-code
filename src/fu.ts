@@ -15,7 +15,7 @@ type Pipe<T extends Fns> = T extends [Fn<infer A, infer B>, ...infer Rest]
 type Cmp<T> = (a: T, b: T) => number;
 
 export const pass =
-  <T>(value: T) =>
+  <T = undefined>(value?: T) =>
   () =>
     value;
 

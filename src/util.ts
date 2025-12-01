@@ -21,7 +21,7 @@ export const readTree = (provider: FileSystemProvider, uri: Uri): PromiseLike<Ur
     .then(flat);
 
 export class DisposableContainer implements Disposable {
-  private readonly disposables: Disposable[] = [];
+  protected readonly disposables: Disposable[] = [];
 
   static from = (...disposables: Disposable[]): DisposableContainer => {
     const container = new DisposableContainer();
@@ -38,3 +38,12 @@ export class DisposableContainer implements Disposable {
     this.disposables.forEach(call("dispose"));
   }
 }
+
+export const whenError =
+  <T>(predicate: (err: unknown) => boolean, handler: (err: unknown) => T) =>
+  (err: unknown): T =>
+    predicate(err)
+      ? handler(err)
+      : (() => {
+          throw err;
+        })();

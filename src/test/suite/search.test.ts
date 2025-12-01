@@ -4,7 +4,6 @@ import * as os from "os";
 import * as path from "path";
 import { FileChangeType, Uri } from "vscode";
 import { SearchIndexProvider } from "../../providers/search";
-import * as util from "../../util";
 import { MockFS } from "../mock/fs";
 
 function indexFile({ create, content }: { create: boolean; content?: string } = { create: true }) {
@@ -81,13 +80,9 @@ describe("SearchIndexProvider", () => {
       "bar.txt": { content: "another test" },
     });
     const provider = new SearchIndexProvider(fs, indexFile());
-    const uris = [Uri.parse("foo.txt"), Uri.parse("bar.txt")];
-    const origReadTree: typeof util.readTree = util.readTree;
-    (util as { readTree: typeof util.readTree }).readTree = () => Promise.resolve(uris);
     await provider.reset();
     const results = provider.search("hello");
     assert.ok(results.some(r => r.path === "foo.txt"));
-    (util as { readTree: typeof util.readTree }).readTree = origReadTree;
     provider.dispose();
   });
 
@@ -97,12 +92,8 @@ describe("SearchIndexProvider", () => {
       "bar.txt": { content: "another test" },
     });
     const provider = new SearchIndexProvider(fs, indexFile());
-    const uris = [Uri.parse("foo.txt"), Uri.parse("bar.txt")];
-    const origReadTree: typeof util.readTree = util.readTree;
-    (util as { readTree: typeof util.readTree }).readTree = () => Promise.resolve(uris);
     await provider.reset();
     assert.equal(provider.size(), 2);
-    (util as { readTree: typeof util.readTree }).readTree = origReadTree;
     provider.dispose();
   });
 

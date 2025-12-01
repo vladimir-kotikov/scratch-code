@@ -2,9 +2,6 @@ import langMap from "lang-map";
 import * as path from "path";
 import * as vscode from "vscode";
 import { Disposable, Uri } from "vscode";
-import { map, pass, waitPromises } from "./fu";
-import * as prompt from "./prompt";
-import { isUserCancelled, NoSeparator, WithSeparator } from "./prompt";
 import { isFileExistsError, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import {
@@ -14,7 +11,11 @@ import {
   SortOrder,
   SortOrderLength,
 } from "./providers/tree";
-import { DisposableContainer, whenError } from "./util";
+import { DisposableContainer } from "./util/disposable";
+import { map, pass } from "./util/fu";
+import { waitPromises, whenError } from "./util/promises";
+import * as prompt from "./util/prompt";
+import { isUserCancelled, NoSeparator, WithSeparator } from "./util/prompt";
 export { SortOrder } from "./providers/tree";
 
 const extOverrides: Record<string, string> = {

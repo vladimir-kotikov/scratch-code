@@ -76,18 +76,6 @@ export const tap =
     return value;
   };
 
-const isPromiseLike = <P>(p: P | PromiseLike<P>): p is PromiseLike<P> =>
-  typeof (p as PromiseLike<P>)?.then === "function";
-
-export const asPromise = <P>(p: P | PromiseLike<P>): Promise<P> =>
-  p instanceof Promise
-    ? p
-    : isPromiseLike(p)
-      ? new Promise((resolve, reject) => p.then(resolve, reject))
-      : Promise.resolve(p);
-
-export const waitPromises = Promise.all.bind(Promise);
-
 const composeComparators =
   <T>(...cmps: Cmp<T>[]): Cmp<T> =>
   (a: T, b: T) =>

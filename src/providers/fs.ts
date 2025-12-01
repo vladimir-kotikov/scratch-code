@@ -12,8 +12,9 @@ import {
   FileType,
   Uri,
 } from "vscode";
-import { asPromise, call } from "../fu";
-import { DisposableContainer, whenError } from "../util";
+import { DisposableContainer } from "../util/disposable";
+import { call } from "../util/fu";
+import { asPromise, whenError } from "../util/promises";
 
 const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toString("utf8");
 

@@ -1,5 +1,5 @@
 import { strict as assert } from "assert";
-import { pipe, reduce, sort, tap } from "../../fu";
+import { pipe, reduce, sort, tap } from "../../util/fu";
 
 describe("fu utilities", () => {
   describe("pipe", () => {

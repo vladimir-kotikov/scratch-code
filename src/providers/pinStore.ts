@@ -1,5 +1,5 @@
 import { EventEmitter, Uri } from "vscode";
-import { filter, pass, pipe, reduce } from "../fu";
+import { filter, pass, pipe, reduce } from "../util/fu";
 import { ScratchFileSystemProvider } from "./fs";
 
 export class PinStore {

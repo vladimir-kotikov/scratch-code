@@ -1,9 +1,10 @@
 import MiniSearch, { Options as SearchOptions, SearchResult } from "minisearch";
 import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
-import { FileChangeType, FileSystemProvider, Uri } from "vscode";
-import { asPromise, map, waitPromises } from "../fu";
-import { DisposableContainer, readTree } from "../util";
+import { FileChangeType, FileSystemProvider, FileType, Uri } from "vscode";
+import { DisposableContainer } from "../util/disposable";
+import { flat, map } from "../util/fu";
+import { asPromise, waitPromises } from "../util/promises";
 import { ScratchFileSystemProvider } from "./fs";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
@@ -17,6 +18,20 @@ export type SearchDoc = {
   path: string;
   content: string;
 };
+
+export const readTree = (provider: FileSystemProvider, uri: Uri): PromiseLike<Uri[]> =>
+  asPromise(provider.readDirectory(uri))
+    .then(
+      map(([fileName, fileType]) => {
+        return fileType === FileType.Unknown
+          ? []
+          : fileType === FileType.Directory
+            ? readTree(provider, Uri.joinPath(uri, fileName))
+            : [Uri.joinPath(uri, fileName)];
+      }),
+    )
+    .then(items => Promise.all(items))
+    .then(flat);
 
 const getFirstMatch = (result: SearchResult & SearchDoc) => {
   const [term] =

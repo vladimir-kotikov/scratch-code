@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Disposable, QuickPickItem } from "vscode";
-import { asPromise, call } from "./fu";
+import { call } from "./fu";
+import { asPromise } from "./promises";
 
 export class UserCancelled extends Error {
   static error = new UserCancelled();
@@ -32,7 +33,7 @@ export const input = (title: string, value?: string, placeHolder?: string): Prom
     .then(res => (res === undefined ? UserCancelled.reject : res));
 
 export const confirm = (message: string) =>
-  asPromise(vscode.window.showInformationMessage(message, { modal: true }, "Yes", "No")).then(
+  asPromise(vscode.window.showInformationMessage(message, { modal: true }, "Yes")).then(
     selection => (selection === "Yes" ? void 0 : UserCancelled.reject),
   );
 

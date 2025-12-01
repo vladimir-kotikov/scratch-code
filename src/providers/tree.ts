@@ -11,8 +11,9 @@ import {
   TreeItemCollapsibleState,
   Uri,
 } from "vscode";
-import { asPromise, filter, flat, item, map, pipe, sort, zip } from "../fu";
-import { DisposableContainer } from "../util";
+import { DisposableContainer } from "../util/disposable";
+import { filter, flat, item, map, pipe, sort, zip } from "../util/fu";
+import { asPromise } from "../util/promises";
 import { ScratchFileSystemProvider } from "./fs";
 import { PinStore } from "./pinStore";
 

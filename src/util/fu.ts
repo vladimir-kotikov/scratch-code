@@ -16,8 +16,8 @@ type Cmp<T> = (a: T, b: T) => number;
 
 export const pass =
   <T = undefined>(value?: T) =>
-  () =>
-    value;
+  (): T extends undefined ? undefined : T =>
+    value as T extends undefined ? undefined : T;
 
 export const zip =
   <A, B>(as: A[]) =>

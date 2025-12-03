@@ -1,7 +1,7 @@
 import langMap from "lang-map";
 import * as path from "path";
 import * as vscode from "vscode";
-import { Disposable, Uri } from "vscode";
+import { Disposable, LanguageModelChatMessage, QuickPickItem, Uri } from "vscode";
 import { isFileExistsError, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import {
@@ -12,11 +12,11 @@ import {
   SortOrderLength,
 } from "./providers/tree";
 import { DisposableContainer } from "./util/disposable";
+import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
-import { waitPromises, whenError } from "./util/promises";
+import { asPromise, waitPromises, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled, NoSeparator, WithSeparator } from "./util/prompt";
-export { SortOrder } from "./providers/tree";
+import { isUserCancelled, Separator, separator } from "./util/prompt";
 
 const extOverrides: Record<string, string> = {
   makefile: "",
@@ -25,20 +25,23 @@ const extOverrides: Record<string, string> = {
   shellscript: "sh",
 };
 
-const separator = {
-  label: "Scratches",
-  kind: vscode.QuickPickItemKind.Separator as const,
-} as WithSeparator<ScratchQuickPickItem>;
+const once = <T>(fn: () => T): (() => T) => {
+  let called = false;
+  let result: T;
+  return () => {
+    if (!called) {
+      called = true;
+      result = fn();
+    }
+    return result;
+  };
+};
 
 const splitLines = (text: string) =>
   text
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(line => line.length > 0);
-
-const openDocument = (uri?: Uri) => uri && vscode.commands.executeCommand("vscode.open", uri);
-
-const closeEditor = () => vscode.commands.executeCommand("workbench.action.closeActiveEditor");
 
 const stripChars = (str: string, chars: string): string => {
   let start = 0;
@@ -71,20 +74,6 @@ const getFirstChars = (n: number, doc: vscode.TextDocument): string => {
   }
 
   return result.slice(0, n);
-};
-
-const selectAll = (editor: vscode.TextEditor): void => {
-  const doc = editor?.document;
-  if (!doc) {
-    return;
-  }
-
-  editor.selection = new vscode.Selection(
-    0,
-    0,
-    doc.lineCount,
-    doc.lineAt(doc.lineCount - 1).text.length,
-  );
 };
 
 export const inferExtension = (doc: vscode.TextDocument): string => {
@@ -199,8 +188,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .getFlatTree(this.treeDataProvider.sortOrder)
       .then(map(scratch => scratch.toQuickPickItem()))
       .then(
-        insertBefore(
-          (item, i) => !(item as NoSeparator<ScratchQuickPickItem>).scratch.isPinned && i > 0,
+        insertBefore<ScratchQuickPickItem | Separator>(
+          (item, i) =>
+            item.kind !== vscode.QuickPickItemKind.Separator && !item.scratch.isPinned && i > 0,
           separator,
         ),
       );
@@ -216,7 +206,10 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   private handleDrop = (_target: Scratch | undefined, dataTransfer: vscode.DataTransfer) => {
     const file = dataTransfer.get("text/plain")?.asFile();
     return file
-      ? file.data().then(data => this.newScratch(file.name, data))
+      ? file
+          .data()
+          .then(data => this.newScratch(file.name, data))
+          .then(pass())
       : dataTransfer
           .get("text/uri-list")
           ?.asString()
@@ -241,43 +234,88 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
             .then(() => this.fileSystemProvider.writeFile(uri, content)),
         ),
       )
-      .catch(whenError(isUserCancelled, pass()));
+      .then(() => uri);
   };
 
-  newScratchFromBuffer = async () => {
-    const editor = vscode.window.activeTextEditor;
-    const doc = editor?.document;
-    if (!doc) {
-      return prompt.info("No document is open");
-    }
+  newScratchFromBuffer = async () =>
+    prompt.UserCancelled.rejectIfUndefined(editor.getCurrent()).then(e => {
+      // Heuristic is the following:
+      // if the file is not untitled and have a name - use that
+      // if the file is untitled and is not empty - infer the name from content
+      //   and offer a few alternatives from the language model
+      // if the file is empty - ask to input the name
+      const text = e.document.getText().trim();
+      const inferFilenames = once(() => {
+        const ANNOTATION_PROMPT = `Your task is to suggest up to 5 concise and descriptive filenames for a snippet ${e.document.languageId !== "plaintext" ? `in ${e.document.languageId} language` : ""} provided by the user. The filenames should accurately reflect the content and purpose of the text. Each filename length should not exceed 50 characters. Provide each filename on a new line without any additional explanation or formatting.`;
 
-    const suggestedFilename = inferFilename(doc);
-    const suggestedExtension = inferExtension(doc);
-    const filename = await vscode.window.showInputBox({
-      ignoreFocusOut: true,
-      title: "File name for the new scratch",
-      value: `${suggestedFilename}${suggestedExtension}`,
-      valueSelection: [0, suggestedFilename.length],
+        // TODO: fallback when model is not available
+        return vscode.lm
+          .selectChatModels({
+            vendor: "copilot",
+            family: "gpt-4o-mini",
+          })
+          .then(models =>
+            models[0]
+              ?.sendRequest(
+                [
+                  LanguageModelChatMessage.User(ANNOTATION_PROMPT),
+                  LanguageModelChatMessage.User(e.document.getText().substring(0, 1000)),
+                ],
+                { justification: "Generate filenames for scratch file" },
+              )
+              .then(async resp => {
+                let choices = "";
+                for await (const chunk of resp.text) {
+                  choices += chunk;
+                }
+                return splitLines(choices).slice(0, 5);
+              }),
+          )
+          .then(filenames =>
+            filenames.map(name => ({
+              label: name,
+            })),
+          );
+      });
+      const getFilename = !e.document.isUntitled
+        ? asPromise(path.basename(e.document.fileName))
+        : text.length !== 0
+          ? prompt
+              .pick<QuickPickItem>(inferFilenames, {
+                onDidChangeValue: (value, _, setItems) => {
+                  setItems(() =>
+                    // FIXME: This causes flicker when typing fast, consider:
+                    // - modifying added item by reference
+                    // - debouncing
+                    // - setting items synchronously
+                    inferFilenames().then(items => [
+                      ...items,
+                      {
+                        label: value,
+                        iconPath: { id: "plus" },
+                        description: "Create scratch: " + value,
+                      },
+                    ]),
+                  );
+                },
+              })
+              .then(item => item.label)
+          : prompt.input("Enter scratch filename", "Scratch" + inferExtension(e.document), {
+              valueSelection: [0, "Scratch".length],
+            });
+
+      return getFilename
+        .then(filename =>
+          this.newScratch(filename + inferExtension(e.document), text)
+            .then(uri =>
+              e.document.isUntitled
+                ? editor.clear(e).then(editor.closeCurrent).then(pass(uri))
+                : uri,
+            )
+            .then(editor.openDocument),
+        )
+        .catch(whenError(isUserCancelled, pass()));
     });
-
-    if (!filename) {
-      return;
-    }
-
-    const scratchUri = Uri.parse("scratch:/" + filename);
-    await this.newScratch(filename, doc.getText() ?? "");
-    if (doc.isUntitled) {
-      return editor
-        .edit(editBuilder => {
-          selectAll(editor);
-          editBuilder.delete(editor.selection);
-        })
-        .then(() => Promise.all([closeEditor(), openDocument(scratchUri)]))
-        .then();
-    }
-
-    return openDocument(scratchUri);
-  };
 
   private newScratchFromFile = async (uri: Uri) =>
     uri.fsPath === "/"
@@ -287,21 +325,29 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           .then(content => this.newScratch(path.basename(uri.path), content));
 
   quickOpen = () =>
-    prompt.pick<WithSeparator<ScratchQuickPickItem>>(this.getQuickPickItems, {
-      onDidSelectItem: item => openDocument(item?.scratch.uri),
-      buttons: {
-        "Pin scratch": item => this.pinScratch(item.scratch),
-        "Unpin scratch": item => this.unpinScratch(item.scratch),
-      },
-    });
+    prompt
+      .pick<ScratchQuickPickItem>(this.getQuickPickItems, {
+        buttons: {
+          "Pin scratch": (item, setItems) => {
+            this.pinScratch(item.scratch);
+            setItems(this.getQuickPickItems);
+          },
+          "Unpin scratch": (item, setItems) => {
+            this.unpinScratch(item.scratch);
+            setItems(this.getQuickPickItems);
+          },
+        },
+      })
+      .then(item => editor.openDocument(item.scratch.uri), whenError(isUserCancelled, pass()));
 
   quickSearch = () =>
-    prompt.pick<vscode.QuickPickItem & { uri: vscode.Uri }>(this.getQuickSearchItems, {
-      onDidSelectItem: item => openDocument(item?.uri),
-      onDidChangeValue: this.getQuickSearchItems,
-      matchOnDescription: true,
-      matchOnDetail: true,
-    });
+    prompt
+      .pick<vscode.QuickPickItem & { uri: vscode.Uri }>(this.getQuickSearchItems, {
+        onDidChangeValue: (value, _, setItems) => setItems(() => this.getQuickSearchItems(value)),
+        matchOnDescription: true,
+        matchOnDetail: true,
+      })
+      .then(item => editor.openDocument(item.uri), whenError(isUserCancelled, pass()));
 
   resetIndex = async () =>
     this.index
@@ -337,8 +383,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     // If there was no scratch then we just renamed a scratch opened in the
     // current editor so close it and reopen with the new name
     if (!scratch) {
-      await closeEditor();
-      await openDocument(newUri);
+      await editor.closeCurrent();
+      await editor.openDocument(newUri);
     }
   };
 
@@ -351,7 +397,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     try {
       await this.fileSystemProvider.delete(uri);
       if (!scratch) {
-        await closeEditor();
+        await editor.closeCurrent();
       }
     } catch (e) {
       console.warn(`Error while removing ${uri}`, e);

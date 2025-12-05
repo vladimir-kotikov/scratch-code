@@ -16,9 +16,5 @@
   },
   "include": [
     "src/**/*.ts"
-  ],
-  "exclude": [
-    "eslint.config.mjs",
-    "dist"
   ]
 }

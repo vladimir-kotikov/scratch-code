@@ -1,5 +1,6 @@
 import { strict as assert } from "assert";
 import * as fs from "fs";
+import { describe, it } from "mocha";
 import * as os from "os";
 import * as path from "path";
 import { FileChangeType, Uri } from "vscode";

@@ -1,4 +1,5 @@
 import { strict as assert } from "assert";
+import { describe, it } from "mocha";
 import { ScratchTreeProvider, SortOrder, SortOrderLength } from "../../providers/tree";
 import { MockFS } from "../mock/fs";
 

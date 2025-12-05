@@ -151,15 +151,16 @@
   },
   "scripts": {
     "compile": "npm run check-types && node .esbuild.js",
+    "compile:tests": "tsc",
     "watch": "npx npm-run-all -p watch:*",
     "check-types": "tsc --noEmit",
     "watch:esbuild": "node .esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "watch:tests": "tsc --watch",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "npx rimraf ./out && tsc --outDir ./out && node ./out/test/runTest.js",
+    "test": "npm run compile:tests && vscode-test",
     "prepare": "npx husky || true"
   },
   "devDependencies": {
@@ -168,6 +169,7 @@
     "@types/node": "^24.10.1",
     "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.105.0",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.0",
     "esbuild": "^0.25.12",

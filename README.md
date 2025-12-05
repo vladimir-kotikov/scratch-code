@@ -93,6 +93,11 @@ Initial release of the extension
 
 - Allow pinning scratches in the explorer view and quick pick
 
+### 0.2.5
+
+- Drag and drop support (partial) - files can be dropped into scratches view to save them
+- Better scratch name inference through LM
+
 ## Future plans and fixes
 
 - I want to easily find some past scratchpads, ideally with fuzzy search.

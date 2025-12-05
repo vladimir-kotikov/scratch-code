@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { InputBoxOptions, QuickPickItem } from "vscode";
+import { InputBoxOptions, QuickPick, QuickPickItem } from "vscode";
 import { DisposableContainer } from "./disposable";
 import { asPromise } from "./promises";
 
@@ -48,30 +48,66 @@ export const confirm = (message: string) =>
     vscode.window.showInformationMessage(message, { modal: true }, "Yes"),
   );
 
-type GetItems<T extends QuickPickItem> = () => Result<WithSeparator<T>[]>;
-type SetItems<T extends QuickPickItem> = (getItems: GetItems<T>) => void;
+export const pickText = (
+  getItems: () => string[] | PromiseLike<string[]>,
+  { placeholder, customChoice }: { placeholder?: string; customChoice?: QuickPickItem } = {},
+) => {
+  const picker = vscode.window.createQuickPick();
+  if (placeholder !== undefined) {
+    picker.placeholder = placeholder;
+  }
+
+  const { promise, reject, resolve } = Promise.withResolvers<string>();
+  const disposable = DisposableContainer.from(
+    picker,
+    picker.onDidAccept(() =>
+      picker.selectedItems[0] === undefined
+        ? reject(UserCancelled.error)
+        : resolve(
+            picker.selectedItems[0] === customChoice ? picker.value : picker.selectedItems[0].label,
+          ),
+    ),
+    picker.onDidHide(() => {
+      disposable.dispose();
+      reject(UserCancelled.error);
+    }),
+  );
+
+  picker.busy = true;
+  picker.show();
+  asPromise(getItems()).then(items => {
+    const pickerItems = items.map(label => ({ label }));
+    if (customChoice) {
+      customChoice.alwaysShow = true;
+      pickerItems.push(customChoice);
+    }
+    picker.items = pickerItems;
+    picker.busy = false;
+  });
+
+  return promise;
+};
 
 export const pick = <T extends QuickPickItem = QuickPickItem>(
-  getItems: GetItems<T>,
+  getItems: () => Result<WithSeparator<T>[]>,
   {
     onDidChangeValue,
     buttons,
     matchOnDescription,
     matchOnDetail,
+    placeholder,
   }: {
-    onDidChangeValue?: (
-      value: string,
-      items: readonly WithSeparator<T>[],
-      setItems: SetItems<T>,
-    ) => void;
-    buttons?: Record<string, (item: NoSeparator<T>, setItems: SetItems<T>) => void>;
+    onDidChangeValue?: (value: string, picker: QuickPick<WithSeparator<T>>) => void;
+    buttons?: Record<string, (item: NoSeparator<T>, picker: QuickPick<WithSeparator<T>>) => void>;
     matchOnDescription?: boolean;
     matchOnDetail?: boolean;
+    placeholder?: string;
   } = {},
 ) => {
   const picker = vscode.window.createQuickPick<WithSeparator<T>>();
-  const { promise, reject, resolve } = Promise.withResolvers<T>();
-
+  if (placeholder !== undefined) {
+    picker.placeholder = placeholder;
+  }
   if (matchOnDescription) {
     picker.matchOnDescription = true;
   }
@@ -79,16 +115,7 @@ export const pick = <T extends QuickPickItem = QuickPickItem>(
     picker.matchOnDetail = true;
   }
 
-  const setItems = (getItems: GetItems<T>) => {
-    picker.placeholder = "Loading scratches...";
-    picker.busy = true;
-    asPromise(getItems()).then(items => {
-      picker.items = items;
-      picker.placeholder = "Select a scratch to open";
-      picker.busy = false;
-    });
-  };
-
+  const { promise, reject, resolve } = Promise.withResolvers<T>();
   const disposable = DisposableContainer.from(
     picker,
     picker.onDidAccept(() =>
@@ -103,17 +130,21 @@ export const pick = <T extends QuickPickItem = QuickPickItem>(
   );
   if (buttons !== undefined) {
     disposable.disposeLater(
-      picker.onDidTriggerItemButton(e => {
-        buttons[e.button.tooltip as string]?.(e.item as NoSeparator<T>, setItems);
-      }),
+      picker.onDidTriggerItemButton(e =>
+        buttons[e.button.tooltip as string]?.(e.item as NoSeparator<T>, picker),
+      ),
     );
   }
   if (onDidChangeValue) {
-    picker.onDidChangeValue(value => onDidChangeValue(value, picker.items, setItems));
+    disposable.disposeLater(picker.onDidChangeValue(value => onDidChangeValue(value, picker)));
   }
 
+  picker.busy = true;
   picker.show();
-  setItems(getItems);
+  asPromise(getItems()).then(items => {
+    picker.items = items;
+    picker.busy = false;
+  });
 
   return promise;
 };

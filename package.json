@@ -8,13 +8,23 @@
     "type": "git",
     "url": "https://github.com/vladimir-kotikov/scratch-code.git"
   },
+  "bugs": {
+    "url": "https://github.com/vladimir-kotikov/scratch-code/issues"
+  },
+  "homepage": "https://github.com/vladimir-kotikov/scratch-code",
   "publisher": "vlkoti",
+  "changelog": "CHANGELOG.md",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.105.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "scratchpad",
+    "snippets",
+    "notes"
   ],
   "activationEvents": [
     "onFileSystem:scratch"

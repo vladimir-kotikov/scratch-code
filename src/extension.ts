@@ -115,40 +115,11 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       ),
     );
 
-    // Refactored drag-and-drop controller for scratches view
     this.scratchesDragAndDropController = {
       dragMimeTypes: ["text/uri-list", "text/plain"],
       dropMimeTypes: ["text/uri-list", "text/plain"],
       handleDrop: this.handleDrop,
-      handleDrag: (
-        sources: Scratch[],
-        dataTransfer: vscode.DataTransfer,
-        _token: vscode.CancellationToken,
-      ) =>
-        Promise.all(
-          sources
-            .filter(s => s?.uri)
-            .map(scratch =>
-              this.fileSystemProvider.readFile(scratch.uri).then(
-                content => {
-                  dataTransfer.set(
-                    "text/uri-list",
-                    new vscode.DataTransferItem(scratch.uri.toString()),
-                  );
-                  dataTransfer.set(
-                    "text/plain",
-                    new vscode.DataTransferItem(Buffer.from(content).toString("utf8")),
-                  );
-                },
-                () => {
-                  dataTransfer.set(
-                    "text/uri-list",
-                    new vscode.DataTransferItem(scratch.uri.toString()),
-                  );
-                },
-              ),
-            ),
-        ).then(() => void 0),
+      handleDrag: this.handleDrag,
     };
 
     this.disposeLater(
@@ -194,6 +165,22 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       iconPath: vscode.ThemeIcon.File,
       uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
     }));
+
+  // There's only one item is allowed to be selected so
+  // dragging always involves a single scratch
+  private handleDrag = ([scratch, ..._]: Scratch[], dataTransfer: vscode.DataTransfer) =>
+    this.fileSystemProvider.readFile(scratch.uri).then(content => {
+      dataTransfer.set("text/uri-list", new vscode.DataTransferItem(scratch.uri.toString()));
+
+      try {
+        dataTransfer.set(
+          "text/plain",
+          new vscode.DataTransferItem(Buffer.from(content).toString("utf8")),
+        );
+      } catch {
+        /* empty */
+      }
+    });
 
   private handleDrop = (_target: Scratch | undefined, dataTransfer: vscode.DataTransfer) => {
     const file = dataTransfer.get("text/plain")?.asFile();

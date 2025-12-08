@@ -1,4 +1,4 @@
-import * as assert from "assert";
+import { strict as assert } from "assert";
 import { describe, it } from "mocha";
 import { inferExtension } from "../../extension";
 
@@ -129,5 +129,29 @@ describe("inferExtension always returns dotted extension or empty string", () =>
       );
       assert.strictEqual(ext, expected);
     });
+  });
+});
+
+describe("Scratches Drag-and-Drop", () => {
+  it("should provide text/uri-list and text/plain for dragged scratch", async () => {
+    const ext = new (require("../../extension").ScratchExtension)(
+      require("vscode").Uri.parse("scratch:/"),
+      require("vscode").Uri.parse("scratch-storage:/"),
+      { get: () => 0, update: () => Promise.resolve() },
+    );
+    await ext.fileSystemProvider.writeFile(
+      require("vscode").Uri.parse("scratch:/test.txt"),
+      "hello world",
+    );
+    const scratch = new (require("../../providers/tree").Scratch)(
+      require("vscode").Uri.parse("scratch:/test.txt"),
+      false,
+    );
+    const dataTransfer = new (require("vscode").DataTransfer)();
+    await ext.scratchesDragAndDropController.handleDrag([scratch], dataTransfer, {
+      isCancellationRequested: false,
+    });
+    assert((await dataTransfer.get("text/uri-list")?.asString()) === "scratch:/test.txt");
+    assert.strictEqual(await dataTransfer.get("text/plain")?.asString(), "hello world");
   });
 });

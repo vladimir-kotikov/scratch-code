@@ -31,10 +31,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
-    vscode.commands.registerCommand(
-      "scratches.newScratchFromBuffer",
-      extension.newScratchFromBuffer,
-    ),
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
     vscode.commands.registerCommand("scratches.search.quickSearch", extension.quickSearch),
     vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),

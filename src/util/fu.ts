@@ -4,6 +4,8 @@ type Fn<T = any, R = any> = (value: T) => R;
 type Fns = [...Fn[], Fn];
 type VarFn<Args extends unknown[] = unknown[], R = unknown> = (...args: Args) => R;
 
+export const identity = <T>(value: T): T => value;
+
 type Pipe<T extends Fns> = T extends [Fn<infer A, infer B>, ...infer Rest]
   ? Rest extends Fns
     ? Pipe<Rest> extends Fn<B, infer C>

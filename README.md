@@ -28,3 +28,7 @@ Scratch Code is a VSCode extension for managing scratch files and quick notes. I
 ### Contributing
 
 Issues and pull requests are welcome.
+
+## TODO
+
+- Cmd + Delete keybinding to delete scratch when in tree view

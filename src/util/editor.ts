@@ -5,6 +5,15 @@ import { asPromise } from "./promises";
 export const openDocument = (uri?: Uri) =>
   asPromise(vscode.commands.executeCommand("vscode.open", uri));
 
+export const getCurrent = () => vscode.window.activeTextEditor;
+export const getCurrentDocument = () => getCurrent()?.document;
+export const getCurrentContent = () => getCurrent()?.document.getText() ?? "";
+export const getCurrentSelection = () => {
+  // TODO: multiple selections
+  const editor = getCurrent();
+  return editor?.selection ? (editor.document.getText(editor.selection) ?? "") : "";
+};
+
 export const selectAll = (editor: TextEditor) =>
   (editor.selection = new Selection(
     0,
@@ -12,8 +21,6 @@ export const selectAll = (editor: TextEditor) =>
     editor.document.lineCount,
     editor.document.lineAt(editor.document.lineCount - 1).text.length,
   ));
-
-export const getCurrent = () => vscode.window.activeTextEditor;
 
 export const clear = (editor: TextEditor) =>
   editor.edit(editBuilder => {

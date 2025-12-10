@@ -34,7 +34,7 @@
     "commands": [
       {
         "command": "scratches.newScratch",
-        "title": "New",
+        "title": "New Scratch...",
         "category": "Scratches",
         "icon": "$(new-file)"
       },
@@ -51,11 +51,6 @@
       {
         "command": "scratches.search.resetIndex",
         "title": "Reset Search Index",
-        "category": "Scratches"
-      },
-      {
-        "command": "scratches.newScratchFromBuffer",
-        "title": "New from current buffer",
         "category": "Scratches"
       },
       {
@@ -170,7 +165,7 @@
     "package": "npm run check-types && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "npm run compile:tests && vscode-test",
+    "test": "npx rimraf out && npm run compile:tests && vscode-test",
     "prepare": "npx husky || true"
   },
   "devDependencies": {

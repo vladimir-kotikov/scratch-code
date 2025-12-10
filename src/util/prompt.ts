@@ -47,46 +47,6 @@ export const confirm = (message: string) =>
     vscode.window.showInformationMessage(message, { modal: true }, "Yes"),
   );
 
-export const pickText = (
-  getItems: () => string[] | PromiseLike<string[]>,
-  { placeholder, customChoice }: { placeholder?: string; customChoice?: QuickPickItem } = {},
-) => {
-  const picker = vscode.window.createQuickPick();
-  if (placeholder !== undefined) {
-    picker.placeholder = placeholder;
-  }
-
-  const { promise, reject, resolve } = Promise.withResolvers<string>();
-  const disposable = DisposableContainer.from(
-    picker,
-    picker.onDidAccept(() =>
-      picker.selectedItems[0] === undefined
-        ? reject(UserCancelled.error)
-        : resolve(
-            picker.selectedItems[0] === customChoice ? picker.value : picker.selectedItems[0].label,
-          ),
-    ),
-    picker.onDidHide(() => {
-      disposable.dispose();
-      reject(UserCancelled.error);
-    }),
-  );
-
-  picker.busy = true;
-  picker.show();
-  asPromise(getItems()).then(items => {
-    const pickerItems = items.map(label => ({ label }));
-    if (customChoice) {
-      customChoice.alwaysShow = true;
-      pickerItems.push(customChoice);
-    }
-    picker.items = pickerItems;
-    picker.busy = false;
-  });
-
-  return promise;
-};
-
 export type PickerItem<T extends Record<string, unknown> = Record<string, unknown>> = Omit<
   QuickPickItem,
   "buttons"

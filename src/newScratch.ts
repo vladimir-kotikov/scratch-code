@@ -14,12 +14,7 @@ const splitLines = (text: string) =>
     .map(line => line.trim())
     .filter(line => line.length > 0);
 
-const insertAt = <T>(arr: readonly T[], index: number, items: T[]) => [
-  ...arr.slice(0, index),
-  ...items,
-  ...arr.slice(index),
-];
-
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 const makeFilenameSuggestion = (label: string): PickerItem<{}> => ({
   label,
   description: "AI Suggested",
@@ -87,7 +82,7 @@ const suggestFilenamesButton = (
           ? items
           : // When suggestions are available, reset the value so they are visible
             (setValue(""),
-            insertAt(items, insertSuggestionsAt, suggestions.map(makeFilenameSuggestion))),
+            items.toSpliced(insertSuggestionsAt, 0, ...suggestions.map(makeFilenameSuggestion))),
       ),
     ),
 });

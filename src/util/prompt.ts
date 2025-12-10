@@ -4,6 +4,8 @@ import { DisposableContainer } from "./disposable";
 import { identity } from "./fu";
 import { asPromise } from "./promises";
 
+const isEmpty = (str: string) => str.trim().length === 0;
+
 export class UserCancelled extends Error {
   static error = new UserCancelled();
   static reject = Promise.reject(UserCancelled.error);
@@ -29,6 +31,16 @@ export const input = (
   options?: Omit<InputBoxOptions, "title" | "value">,
 ) =>
   UserCancelled.rejectIfUndefined(vscode.window.showInputBox({ title, value: value, ...options }));
+
+export const filename = (title: string, value?: string) =>
+  input(title, value, {
+    validateInput: (filename: string) =>
+      isEmpty(filename)
+        ? "Filename cannot be empty"
+        : !/^[^\\/:*?"<>|]+$/.test(filename)
+          ? "Filename cannot contain special characters"
+          : null,
+  });
 
 export const confirm = (message: string) =>
   UserCancelled.rejectIfUndefined(

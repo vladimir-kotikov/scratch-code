@@ -6,7 +6,6 @@ import { whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItem } from "./util/prompt";
 
-import * as langMap from "lang-map";
 import * as vscode from "vscode";
 
 const splitLines = (text: string) =>
@@ -15,20 +14,17 @@ const splitLines = (text: string) =>
     .map(line => line.trim())
     .filter(line => line.length > 0);
 
-const extOverrides: Record<string, string> = {
-  makefile: "",
-  ignore: "",
-  plaintext: "",
-  shellscript: "sh",
-};
+const insertAt = <T>(arr: readonly T[], index: number, items: T[]) => [
+  ...arr.slice(0, index),
+  ...items,
+  ...arr.slice(index),
+];
 
-export const inferExtension = (doc: TextDocument): string => {
-  if (doc.isUntitled) {
-    const ext = extOverrides[doc.languageId] ?? langMap.extensions(doc.languageId)[0];
-    return ext ? `.${ext}` : "";
-  }
-  return path.extname(doc.fileName);
-};
+const makeFilenameSuggestion = (label: string): PickerItem<{}> => ({
+  label,
+  description: "AI Suggested",
+  iconPath: { id: "lightbulb-sparkle" },
+});
 
 const suggestFilenames = (doc?: TextDocument) => {
   if (!doc) {
@@ -86,26 +82,17 @@ const suggestFilenamesButton = (
   iconPath: { id: "lightbulb-sparkle" },
   onClick: ({ items, setItems, setValue }) =>
     setItems(() =>
-      suggestFilenames(editor.getCurrentDocument()).then(suggestions => {
-        if (suggestions.length === 0) {
-          return items;
-        }
-        // Reset the value so the new items are visible
-        setValue("");
-        return items.toSpliced(
-          insertSuggestionsAt,
-          0,
-          ...suggestions.map(label => ({
-            label,
-            description: "AI Suggested",
-            iconPath: { id: "lightbulb-sparkle" },
-          })),
-        );
-      }),
+      suggestFilenames(editor.getCurrentDocument()).then(suggestions =>
+        suggestions.length === 0
+          ? items
+          : // When suggestions are available, reset the value so they are visible
+            (setValue(""),
+            insertAt(items, insertSuggestionsAt, suggestions.map(makeFilenameSuggestion))),
+      ),
     ),
 });
 
-type NewScratchPickerCallback = (filename: string, content?: string | Uint8Array) => unknown;
+type NewScratchPickerCallback = (filename?: string, content?: string | Uint8Array) => unknown;
 
 // Multi-mode scratch creation:
 // Prompt: New Scratch... (ellipsis indicates further input required)

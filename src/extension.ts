@@ -18,20 +18,7 @@ import { asPromise, waitPromises, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
 
-const isEmpty = (str: string) => str.trim().length === 0;
 const isEmptyOrUndefined = (str: string | undefined) => str === undefined || str.trim() === "";
-
-const validateFilename = (filename: string) => {
-  if (isEmpty(filename)) {
-    return "Filename cannot be empty";
-  }
-
-  if (!/^[^\\/:*?"<>|]+$/.test(filename)) {
-    return 'Filename cannot contain any of the following characters: \\ / : * ? " < > |';
-  }
-
-  return null;
-};
 
 const splitLines = (text: string) =>
   text
@@ -207,7 +194,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   private createScratch = async (filename?: string, content?: string | Uint8Array) => {
     const filenamePromise = isEmptyOrUndefined(filename)
-      ? prompt.input("Enter scratch filename", "", { validateInput: validateFilename })
+      ? prompt.filename("Enter scratch filename")
       : asPromise(filename);
 
     return filenamePromise.then(filename => {
@@ -258,11 +245,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   resetIndex = async () =>
     this.index
       .reset()
-      .then(() =>
-        vscode.window.showInformationMessage(
-          "Scratches: search index rebuilt, documents: " + this.index.size(),
-        ),
-      );
+      .then(() => prompt.info("Scratches: search index rebuilt, documents: " + this.index.size()));
 
   renameScratch = async (scratch?: Scratch) => {
     const uri = scratch?.uri ?? currentScratchUri();
@@ -271,11 +254,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     }
 
     const fileName = path.basename(uri.path);
-    const newName = await vscode.window.showInputBox({
-      prompt: "Rename scratch",
-      value: fileName,
-      valueSelection: [0, 0],
-    });
+    const newName = await prompt.filename("Enter New Scratch Filename", fileName);
 
     if (!newName) {
       return;

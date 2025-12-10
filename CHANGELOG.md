@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0]
+
+- Complete drag and drop support
+- New create scratch dialog with optional suggestions
+
 ## [0.2.5]
 
 - Drag and drop support for tree view

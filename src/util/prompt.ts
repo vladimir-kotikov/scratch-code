@@ -85,6 +85,7 @@ export const pick = <T extends QuickPickItem>(
     title,
     placeholder,
     initialValue,
+    ignoreFocusOut,
   }: {
     onValueChange?: (e: {
       value: string;
@@ -100,6 +101,7 @@ export const pick = <T extends QuickPickItem>(
     title?: string;
     placeholder?: string;
     initialValue?: string;
+    ignoreFocusOut?: boolean;
   } = {},
 ) => {
   const picker = vscode.window.createQuickPick<T | Separator>();
@@ -109,6 +111,7 @@ export const pick = <T extends QuickPickItem>(
   picker.matchOnDetail = matchOnDetail ?? false;
   picker.value = initialValue ?? "";
   picker.title = title;
+  picker.ignoreFocusOut = ignoreFocusOut ?? false;
 
   const setItems = (
     itemsFn: () => readonly (T | Separator)[] | PromiseLike<readonly (T | Separator)[]>,

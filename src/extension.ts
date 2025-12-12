@@ -18,6 +18,8 @@ import { asPromise, waitPromises, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
 
+const DEBUG = process.env.SCRATCHES_DEBUG === "1";
+
 const isEmptyOrUndefined = (str: string | undefined) => str === undefined || str.trim() === "";
 
 const splitLines = (text: string) =>
@@ -239,6 +241,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         onValueChange: ({ value, setItems }) => setItems(() => this.getQuickSearchItems(value)),
         matchOnDescription: true,
         matchOnDetail: true,
+        ignoreFocusOut: DEBUG,
       })
       .then(item => editor.openDocument(item.uri), whenError(isUserCancelled, pass()));
 

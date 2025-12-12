@@ -1,11 +1,14 @@
 import * as path from "path";
+import { basename } from "path";
+import { match } from "ts-pattern";
 import * as vscode from "vscode";
 import { Disposable, Uri } from "vscode";
 import { newScratchPicker } from "./newScratch";
-import { isFileExistsError, ScratchFileSystemProvider } from "./providers/fs";
+import { isFileExistsError, isNotEmptyDirectory, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
 import {
   Scratch,
+  ScratchFolder,
   ScratchQuickPickItem,
   ScratchTreeProvider,
   SortOrder,
@@ -230,6 +233,19 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   newScratch = () => newScratchPicker(this.createScratch);
 
+  newFolder = (parent?: ScratchFolder | Scratch) => {
+    const parentUri =
+      parent === undefined
+        ? ScratchFileSystemProvider.ROOT
+        : parent instanceof ScratchFolder
+          ? parent.uri
+          : Uri.joinPath(parent.uri, "../");
+
+    return prompt
+      .filename("Enter folder name (slashes for nested allowed)")
+      .then(filename => this.fileSystemProvider.createDirectory(Uri.joinPath(parentUri, filename)));
+  };
+
   quickOpen = () =>
     prompt
       .pick<ScratchQuickPickItem>(this.getQuickPickItems)
@@ -276,21 +292,23 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     }
   };
 
-  deleteScratch = async (scratch?: Scratch) => {
-    const uri = scratch?.uri ?? currentScratchUri();
-    if (!uri) {
-      return;
-    }
-
-    try {
-      await this.fileSystemProvider.delete(uri);
-      if (!scratch) {
-        await editor.closeCurrent();
-      }
-    } catch (e) {
-      console.warn(`Error while removing ${uri}`, e);
-    }
-  };
+  deleteNode = (node?: Scratch | ScratchFolder) =>
+    node === undefined
+      ? Promise.resolve()
+      : this.fileSystemProvider
+          .delete(node.uri, { recursive: false })
+          .catch(
+            whenError(isNotEmptyDirectory, () =>
+              prompt
+                .confirm("Folder is not empty. Delete all of its' contents?")
+                .then(() => this.fileSystemProvider.delete(node.uri, { recursive: true })),
+            ),
+          )
+          .catch(err =>
+            match(err)
+              .when(isUserCancelled, pass())
+              .otherwise(err => prompt.warn(`Could not delete ${basename(node.uri.path)}: ${err}`)),
+          );
 
   toggleSortOrder = () => {
     const order = (this.treeDataProvider.sortOrder + 1) % SortOrderLength;

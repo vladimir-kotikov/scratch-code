@@ -22,8 +22,32 @@ export class MockFS extends ScratchFileSystemProvider {
     }
   }
 
-  readDirectory = async (_dir: Uri): Promise<[string, FileType][]> =>
-    Object.keys(this.files).map(name => [name, this.files[name].type ?? FileType.File]);
+  readDirectory = async (dir: Uri): Promise<[string, FileType][]> => {
+    // Only return immediate children of dir
+    const dirPath = dir.path.replace(/\\/g, "/");
+    const isRoot = dirPath === "" || dirPath === "/";
+    const children = new Set<string>();
+    for (const name of Object.keys(this.files)) {
+      const parts = name.split("/");
+      if (isRoot) {
+        if (parts.length === 1) {
+          children.add(parts[0]);
+        }
+      } else {
+        const dirParts = dirPath.replace(/^\//, "").split("/");
+        if (
+          parts.length === dirParts.length + 1 &&
+          parts.slice(0, dirParts.length).join("/") === dirParts.join("/")
+        ) {
+          children.add(parts[dirParts.length]);
+        }
+      }
+    }
+    return Array.from(children).map(child => [
+      child,
+      this.files[(isRoot ? "" : dirPath.replace(/^\//, "") + "/") + child]?.type ?? FileType.File,
+    ]);
+  };
 
   stat = async (
     uri: Uri,

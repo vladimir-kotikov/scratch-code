@@ -31,11 +31,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
+    vscode.commands.registerCommand("scratches.newFolder", extension.newFolder),
+    vscode.commands.registerCommand("scratches.delete", extension.deleteNode),
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
     vscode.commands.registerCommand("scratches.search.quickSearch", extension.quickSearch),
     vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),
     vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
-    vscode.commands.registerCommand("scratches.deleteScratch", extension.deleteScratch),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     vscode.commands.registerCommand("scratches.pin", extension.pinScratch),

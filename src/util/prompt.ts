@@ -30,7 +30,9 @@ export const input = (
   value?: string,
   options?: Omit<InputBoxOptions, "title" | "value">,
 ) =>
-  UserCancelled.rejectIfUndefined(vscode.window.showInputBox({ title, value: value, ...options }));
+  asPromise(vscode.window.showInputBox({ title, value: value, ...options })).then(v =>
+    v === undefined ? UserCancelled.reject : v,
+  );
 
 export const filename = (title: string, value?: string) =>
   input(title, value, {

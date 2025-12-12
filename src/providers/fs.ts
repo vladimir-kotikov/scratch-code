@@ -26,6 +26,10 @@ const isNotFoundError = (err: unknown): boolean =>
 export const isFileExistsError = (err: unknown): boolean =>
   isFileSystemError(err) && err.code === "FileExists";
 
+export const isNotEmptyDirectory = (err: unknown): boolean =>
+  // TODO: check if this is the correct code
+  isFileSystemError(err) && err.code === "DirectoryNotEmpty";
+
 const isFile = (stat: FileStat): boolean =>
   stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
 
@@ -173,10 +177,10 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
           ),
       );
 
-  async delete(uri: Uri, options?: { readonly recursive: boolean }): Promise<void> {
-    await vscode.workspace.fs.delete(this.toFilesystemUri(uri), options);
-    this._onDidChangeFile.fire([{ type: FileChangeType.Deleted, uri }]);
-  }
+  delete = (uri: Uri, options?: { readonly recursive: boolean }) =>
+    asPromise(vscode.workspace.fs.delete(this.toFilesystemUri(uri), options)).then(() => {
+      this._onDidChangeFile.fire([{ type: FileChangeType.Deleted, uri }]);
+    });
 
   async rename(oldUri: Uri, newUri: Uri, options?: { readonly overwrite: boolean }): Promise<void> {
     await vscode.workspace.fs.rename(

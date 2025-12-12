@@ -59,8 +59,14 @@
         "category": "Scratches"
       },
       {
-        "command": "scratches.deleteScratch",
-        "title": "Delete",
+        "command": "scratches.newFolder",
+        "title": "New Folder...",
+        "category": "Scratches",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "scratches.delete",
+        "title": "Delete Scratch...",
         "category": "Scratches",
         "icon": "$(trash)"
       },
@@ -102,7 +108,8 @@
       "explorer": [
         {
           "id": "scratches",
-          "name": "Scratches"
+          "name": "Scratches",
+          "icon": "resources/folder.svg"
         }
       ]
     },
@@ -132,14 +139,19 @@
       ],
       "view/item/context": [
         {
-          "command": "scratches.renameScratch",
+          "command": "scratches.newFolder",
           "when": "view == scratches",
           "group": "1_modification"
         },
         {
-          "command": "scratches.deleteScratch",
-          "when": "view == scratches",
+          "command": "scratches.delete",
+          "when": "view == scratches && (viewItem == 'folder' || viewItem == 'scratch')",
           "group": "2_deletion"
+        },
+        {
+          "command": "scratches.renameScratch",
+          "when": "view == scratches",
+          "group": "1_modification"
         },
         {
           "command": "scratches.pin",

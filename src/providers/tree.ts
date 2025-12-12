@@ -28,6 +28,26 @@ export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
 
 const ICON_PIN = new ThemeIcon("pinned");
 const ICON_UNPIN = new ThemeIcon("pin");
+export type ScratchTreeNode = Scratch | ScratchFolder;
+
+export class ScratchFolder {
+  constructor(public readonly uri: Uri) {}
+
+  static from(uri: Uri): ScratchFolder {
+    return new ScratchFolder(uri);
+  }
+
+  toTreeItem(): TreeItem {
+    return {
+      label: basename(this.uri.path),
+      resourceUri: this.uri,
+      collapsibleState: TreeItemCollapsibleState.Collapsed,
+      iconPath: ThemeIcon.Folder,
+      contextValue: "folder",
+    };
+  }
+}
+
 export class Scratch {
   constructor(
     public readonly uri: Uri,
@@ -37,7 +57,7 @@ export class Scratch {
   static from = (uri: Uri, isPinned: boolean): Scratch => new Scratch(uri, isPinned);
 
   toTreeItem = (): TreeItem => ({
-    label: this.uri.path.substring(1),
+    label: basename(this.uri.path),
     resourceUri: this.uri,
     command: {
       command: "vscode.open",
@@ -45,8 +65,9 @@ export class Scratch {
       arguments: [this.uri],
     },
     description: this.isPinned ? "pinned" : undefined,
-    contextValue: this.isPinned ? "pinned" : "",
+    contextValue: this.isPinned ? "pinned" : "scratch",
     collapsibleState: TreeItemCollapsibleState.None,
+    iconPath: ThemeIcon.File,
   });
 
   toQuickPickItem = (): ScratchQuickPickItem => ({
@@ -75,7 +96,10 @@ export enum SortOrder {
 
 export const SortOrderLength = Object.keys(SortOrder).length / 2;
 
-export class ScratchTreeProvider extends DisposableContainer implements TreeDataProvider<Scratch> {
+export class ScratchTreeProvider
+  extends DisposableContainer
+  implements TreeDataProvider<ScratchTreeNode>
+{
   private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private reload = (item?: Scratch) => this._onDidChangeTreeData.fire(item);
@@ -122,27 +146,34 @@ export class ScratchTreeProvider extends DisposableContainer implements TreeData
     pipe(
       filter<FileTuple>(([uri]) => !IGNORED_FILES.has(basename(uri.path))),
       sort<FileTuple>(
+        // FileType is a enum with folder = 2 and file = 1, so sorting by
+        // descending FileType would put folders first. Also subtract
+        // SymbolicLink bit to ignore it.
+        sort.desc(sort.byNumericValue(([, { type }]) => (type &= FileType.SymbolicLink))),
         sort.desc(sort.byBoolValue(([uri]) => this.pinStore.isPinned(uri))),
         sortOrder === SortOrder.MostRecent
           ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
           : sort.byStringValue(([uri]) => uri.path),
       ),
-      map<FileTuple, Scratch>(([uri]) => {
-        return Scratch.from(uri, this.pinStore.isPinned(uri));
-      }),
+      map<FileTuple, ScratchTreeNode>(([uri, { type }]) =>
+        type === FileType.Directory
+          ? ScratchFolder.from(uri)
+          : Scratch.from(uri, this.pinStore.isPinned(uri)),
+      ),
     );
 
-  getTreeItem = (element: Scratch) => {
+  getTreeItem = (element: ScratchTreeNode) => {
     return element.toTreeItem();
   };
 
-  getChildren = (element?: Scratch, sortOrder: SortOrder = this._sortOrder) =>
+  getChildren = (element?: ScratchTreeNode, sortOrder: SortOrder = this._sortOrder) =>
     this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then(
       this.sortAndFilter(sortOrder),
     );
 
   getFlatTree = (sortOrder: SortOrder = this._sortOrder) =>
-    this.readTree().then(this.sortAndFilter(sortOrder));
+    // Cast to Promise<Scratch[]> since readTree returns only FileTuples of files
+    this.readTree().then(this.sortAndFilter(sortOrder)) as Promise<Scratch[]>;
 
   getItem = (uri?: Uri) => (uri ? new Scratch(uri, this.pinStore.isPinned(uri)) : undefined);
 

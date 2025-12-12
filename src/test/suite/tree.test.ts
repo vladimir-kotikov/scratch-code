@@ -1,6 +1,7 @@
 import { strict as assert } from "assert";
 import { describe, it } from "mocha";
-import { ScratchTreeProvider, SortOrder, SortOrderLength } from "../../providers/tree";
+import { Uri } from "vscode";
+import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "../../providers/tree";
 import { MockFS } from "../mock/fs";
 
 describe("ScratchTreeProvider", () => {
@@ -17,7 +18,7 @@ describe("ScratchTreeProvider", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const children = await provider.getChildren();
-    const names = children.map(s => s.uri.path);
+    const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/c.txt", "/a.txt"]);
   });
 
@@ -33,7 +34,7 @@ describe("ScratchTreeProvider", () => {
 
     provider.setSortOrder(SortOrder.Alphabetical);
     const children = await provider.getChildren();
-    const names = children.map(s => s.uri.path);
+    const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     assert.deepEqual(names, ["/a.txt", "/b.txt", "/c.txt"]);
   });
 
@@ -48,7 +49,7 @@ describe("ScratchTreeProvider", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const children = await provider.getChildren();
-    const names = children.map(s => s.uri.path);
+    const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/a.txt"]);
   });
 
@@ -64,21 +65,21 @@ describe("ScratchTreeProvider", () => {
     // Initial: MostRecent
     let children = await provider.getChildren();
     assert.deepEqual(
-      children.map(s => s.uri.path),
+      children.filter(s => s instanceof Scratch).map(s => s.uri.path),
       ["/b.txt", "/a.txt"],
     );
     // Toggle to Alphabetical
     provider.setSortOrder((provider.sortOrder + 1) % SortOrderLength);
     children = await provider.getChildren();
     assert.deepEqual(
-      children.map(s => s.uri.path),
+      children.filter(s => s instanceof Scratch).map(s => s.uri.path),
       ["/a.txt", "/b.txt"],
     );
     // Toggle back to MostRecent
     provider.setSortOrder((provider.sortOrder + 1) % SortOrderLength);
     children = await provider.getChildren();
     assert.deepEqual(
-      children.map(s => s.uri.path),
+      children.filter(s => s instanceof Scratch).map(s => s.uri.path),
       ["/b.txt", "/a.txt"],
     );
   });
@@ -97,8 +98,9 @@ describe("ScratchTreeProvider", () => {
     const names = children.map(s => s.uri.path);
     // Pinned items should appear first regardless of mtime
     assert.deepEqual(names, ["/a.txt", "/b.txt", "/c.txt"]);
-    assert.strictEqual(children[0].isPinned, true);
-    assert.strictEqual(children[1].isPinned, false);
+    const scratchChildren = children.filter(s => s instanceof Scratch);
+    assert.strictEqual(scratchChildren[0].isPinned, true);
+    assert.strictEqual(scratchChildren[1].isPinned, false);
   });
 
   it("pinScratch adds item to pinned list", async () => {
@@ -111,14 +113,17 @@ describe("ScratchTreeProvider", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const children = await provider.getChildren();
-    const scratch = children.find(s => s.uri.path === "/b.txt");
-
-    provider.pinScratch(scratch);
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    const updatedChildren = await provider.getChildren();
-    const pinnedItem = updatedChildren.find(s => s.uri.path === "/b.txt");
-    assert.strictEqual(pinnedItem?.isPinned, true);
+    const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
+    if (scratch instanceof Scratch) {
+      provider.pinScratch(scratch);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const updatedChildren = await provider.getChildren();
+      const pinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
+      assert.ok(pinnedItem instanceof Scratch);
+      assert.strictEqual(pinnedItem.isPinned, true);
+    } else {
+      assert.fail("Scratch file not found");
+    }
   });
 
   it("unpinScratch removes item from pinned list", async () => {
@@ -131,15 +136,15 @@ describe("ScratchTreeProvider", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const children = await provider.getChildren();
-    const scratch = children.find(s => s.uri.path === "/b.txt");
-    assert.strictEqual(scratch?.isPinned, true);
-
+    const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
+    assert.ok(scratch instanceof Scratch);
+    assert.strictEqual(scratch.isPinned, true);
     provider.unpinScratch(scratch);
     await new Promise(resolve => setTimeout(resolve, 10));
-
     const updatedChildren = await provider.getChildren();
-    const unpinnedItem = updatedChildren.find(s => s.uri.path === "/b.txt");
-    assert.strictEqual(unpinnedItem?.isPinned, false);
+    const unpinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
+    assert.ok(unpinnedItem instanceof Scratch);
+    assert.strictEqual(unpinnedItem.isPinned, false);
   });
 
   it("pinned items maintain their order within pinned group by sort order", async () => {
@@ -153,7 +158,7 @@ describe("ScratchTreeProvider", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const children = await provider.getChildren();
-    const names = children.map(s => s.uri.path);
+    const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     // Pinned items (c, a) sorted by mtime, then unpinned (b)
     assert.deepEqual(names, ["/c.txt", "/a.txt", "/b.txt"]);
   });
@@ -170,7 +175,7 @@ describe("ScratchTreeProvider", () => {
 
     provider.setSortOrder(SortOrder.Alphabetical);
     const children = await provider.getChildren();
-    const names = children.map(s => s.uri.path);
+    const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     // Pinned items (m, z) sorted alphabetically, then unpinned (b)
     assert.deepEqual(names, ["/m.txt", "/z.txt", "/b.txt"]);
   });
@@ -192,11 +197,12 @@ describe("ScratchTreeProvider", () => {
     });
 
     // Use proper Uri.parse
-    const uri = { scheme: "scratch", path: "/a.txt", toString: () => "scratch:/a.txt" } as any;
+    const uri = Uri.parse("scratch:/a.txt");
     const scratch = provider.getItem(uri);
 
-    assert.strictEqual(scratch?.isPinned, true, "Scratch should be pinned");
-    assert.strictEqual(scratch?.uri.path, "/a.txt");
+    assert.ok(scratch instanceof Scratch);
+    assert.strictEqual(scratch.isPinned, true, "Scratch should be pinned");
+    assert.strictEqual(scratch.uri.path, "/a.txt");
   });
 
   it("handles undefined uri in getItem", async () => {
@@ -206,5 +212,158 @@ describe("ScratchTreeProvider", () => {
 
     const scratch = provider.getItem(undefined);
     assert.strictEqual(scratch, undefined);
+  });
+
+  it("shows folders and scratches in tree", async () => {
+    const files = {
+      folderA: { mtime: 1, type: 2 }, // FileType.Directory
+      "folderA/file1.txt": { mtime: 2 },
+      folderB: { mtime: 3, type: 2 },
+      "file2.txt": { mtime: 4 },
+      ".pinstore": { mtime: 0, content: "" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    // Should show both folders and files at root
+    const labels = children.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    // Folders should be present
+    assert(labels.includes("folderA"));
+    assert(labels.includes("folderB"));
+    assert(labels.includes("file2.txt"));
+
+    // Check children of folderA
+    const folderA = children.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "folderA",
+    );
+    assert(folderA, "folderA should be present");
+    const folderAChildren = await provider.getChildren(folderA);
+    const folderALabels = folderAChildren.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(folderALabels.includes("file1.txt"));
+  });
+
+  it("shows empty folders", async () => {
+    const files = {
+      emptyFolder: { mtime: 1, type: 2 }, // FileType.Directory
+      "file.txt": { mtime: 2 },
+      ".pinstore": { mtime: 0, content: "" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    const labels = children.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(labels.includes("emptyFolder"));
+    assert(labels.includes("file.txt"));
+
+    // Empty folder should have no children
+    const emptyFolder = children.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "emptyFolder",
+    );
+    assert(emptyFolder, "emptyFolder should be present");
+    const emptyChildren = await provider.getChildren(emptyFolder);
+    assert(Array.isArray(emptyChildren) && emptyChildren.length === 0);
+  });
+
+  it("shows deeply nested folders and files", async () => {
+    const files = {
+      root: { mtime: 1, type: 2 },
+      "root/level1": { mtime: 2, type: 2 },
+      "root/level1/level2": { mtime: 3, type: 2 },
+      "root/level1/level2/file.txt": { mtime: 4 },
+      ".pinstore": { mtime: 0, content: "" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    const rootFolder = children.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "root",
+    );
+    assert(rootFolder, "root folder should be present");
+    const level1 = (await provider.getChildren(rootFolder)).find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "level1",
+    );
+    assert(level1, "level1 folder should be present");
+    const level2 = (await provider.getChildren(level1)).find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "level2",
+    );
+    assert(level2, "level2 folder should be present");
+    const level2Children = await provider.getChildren(level2);
+    const level2Labels = level2Children.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(level2Labels.includes("file.txt"));
+  });
+
+  it("shows folders with only folders inside", async () => {
+    const files = {
+      parent: { mtime: 1, type: 2 },
+      "parent/child1": { mtime: 2, type: 2 },
+      "parent/child2": { mtime: 3, type: 2 },
+      ".pinstore": { mtime: 0, content: "" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    const parent = children.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "parent",
+    );
+    assert(parent, "parent folder should be present");
+    const parentChildren = await provider.getChildren(parent);
+    const labels = parentChildren.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(labels.includes("child1"));
+    assert(labels.includes("child2"));
+  });
+
+  it("shows folders with mixed empty and non-empty subfolders", async () => {
+    const files = {
+      top: { mtime: 1, type: 2 },
+      "top/empty": { mtime: 2, type: 2 },
+      "top/nonempty": { mtime: 3, type: 2 },
+      "top/nonempty/file.txt": { mtime: 4 },
+      ".pinstore": { mtime: 0, content: "" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    const top = children.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "top",
+    );
+    assert(top, "top folder should be present");
+    const topChildren = await provider.getChildren(top);
+    const labels = topChildren.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(labels.includes("empty"));
+    assert(labels.includes("nonempty"));
+    // Check empty subfolder
+    const empty = topChildren.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "empty",
+    );
+    assert(empty, "empty subfolder should be present");
+    const emptyChildren = await provider.getChildren(empty);
+    assert(Array.isArray(emptyChildren) && emptyChildren.length === 0);
+    // Check non-empty subfolder
+    const nonempty = topChildren.find(
+      n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "nonempty",
+    );
+    assert(nonempty, "nonempty subfolder should be present");
+    const nonemptyChildren = await provider.getChildren(nonempty);
+    const nonemptyLabels = nonemptyChildren.map(n =>
+      n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
+    );
+    assert(nonemptyLabels.includes("file.txt"));
   });
 });

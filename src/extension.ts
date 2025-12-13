@@ -23,7 +23,8 @@ import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
 
-const isEmptyOrUndefined = (str: string | undefined) => str === undefined || str.trim() === "";
+const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
+  str === undefined || str.trim() === "";
 
 const splitLines = (text: string) =>
   text
@@ -44,6 +45,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
   private readonly index: SearchIndexProvider;
+  private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
 
   public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
 
@@ -100,8 +102,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       handleDrag: this.handleDrag,
     };
 
-    this.disposeLater(
-      vscode.window.createTreeView("scratches", {
+    this.treeView = this.disposeLater(
+      vscode.window.createTreeView("scratchesView", {
         treeDataProvider: this.treeDataProvider,
         dragAndDropController: this.scratchesDragAndDropController,
       }),
@@ -175,12 +177,22 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     });
 
   // TODO: Test dropping plain text
-  private handleDrop = (_target: Scratch | undefined, dataTransfer: vscode.DataTransfer) => {
+  private handleDrop = (
+    target: Scratch | ScratchFolder | undefined,
+    dataTransfer: vscode.DataTransfer,
+  ) => {
+    const parent =
+      target === undefined
+        ? ScratchFileSystemProvider.ROOT
+        : target instanceof ScratchFolder
+          ? target.uri
+          : Uri.joinPath(target.uri, "../");
+
     const file = dataTransfer.get("text/plain")?.asFile();
     return file
       ? file
           .data()
-          .then(data => this.createScratch(file.name, data))
+          .then(data => this.createScratch(file.name, data, parent))
           .then(pass())
       : dataTransfer
           .get("text/uri-list")
@@ -190,21 +202,30 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
               .map(line => Uri.parse(line))
               .filter(uri => uri.scheme !== "scratch")
               .map(uri =>
-                uri.fsPath === "/" ? this.newScratchFromEditor() : this.newScratchFromFile(uri),
+                uri.fsPath === "/"
+                  ? this.newScratchFromEditor(parent)
+                  : this.newScratchFromFile(uri, parent),
               ),
           )
           .then(waitPromises)
           .then(pass());
   };
 
-  private createScratch = async (filename?: string, content?: string | Uint8Array) => {
-    const filenamePromise = isEmptyOrUndefined(filename)
-      ? prompt.filename("Enter scratch filename")
-      : asPromise(filename);
+  private createScratch = async (
+    filename?: string,
+    content?: string | Uint8Array,
+    parent: Uri = ScratchFileSystemProvider.ROOT,
+  ) => {
+    const uriPromise = isEmptyOrUndefined(filename)
+      ? prompt
+          // Trim leading slash to avoid confusion with absolute paths,
+          // then restore it by joining with the root URI
+          .filename("Enter scratch filename", parent.path.slice(1))
+          .then(filename => Uri.joinPath(ScratchFileSystemProvider.ROOT, filename))
+      : asPromise(Uri.joinPath(parent, filename));
 
-    return filenamePromise.then(filename => {
-      const uri = Uri.parse(`scratch:/${filename}`);
-      return this.fileSystemProvider
+    return uriPromise.then(uri =>
+      this.fileSystemProvider
         .writeFile(uri, content, { create: true, overwrite: false })
         .catch(
           whenError(isFileExistsError, () =>
@@ -213,25 +234,35 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
               .then(() => this.fileSystemProvider.writeFile(uri, content)),
           ),
         )
-        .then(() => uri);
-    });
+        .then(() => uri),
+    );
   };
 
   // TODO: Drop now unnecessary functionality
-  private newScratchFromEditor = async () =>
+  private newScratchFromEditor = async (parent?: Uri) =>
     editor.getCurrentDocument()
       ? this.createScratch(
           path.basename(editor.getCurrentDocument()!.fileName),
           editor.getCurrentContent(),
+          parent,
         )
       : undefined;
 
-  private newScratchFromFile = async (uri: Uri) =>
+  private newScratchFromFile = async (uri: Uri, parent?: Uri) =>
     vscode.workspace.fs
       .readFile(uri)
-      .then(content => this.createScratch(path.basename(uri.path), content));
+      .then(content => this.createScratch(path.basename(uri.path), content, parent));
 
-  newScratch = () => newScratchPicker(this.createScratch);
+  newScratch = (parent?: ScratchFolder | Scratch) =>
+    parent === undefined
+      ? newScratchPicker(this.createScratch)
+      : // When parent is a scratch, this means the command has been invoked
+        // from treeView context menu, so just create a blank scratch.
+        this.createScratch(
+          undefined,
+          "",
+          parent instanceof ScratchFolder ? parent.uri : Uri.joinPath(parent.uri, "../"),
+        );
 
   newFolder = (parent?: ScratchFolder | Scratch) => {
     const parentUri =
@@ -242,8 +273,12 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           : Uri.joinPath(parent.uri, "../");
 
     return prompt
-      .filename("Enter folder name (slashes for nested allowed)")
-      .then(filename => this.fileSystemProvider.createDirectory(Uri.joinPath(parentUri, filename)));
+      .filename("Enter folder name (slashes for nested allowed)", parentUri.path.slice(1))
+      .then(filename =>
+        this.fileSystemProvider.createDirectory(
+          Uri.joinPath(ScratchFileSystemProvider.ROOT, filename),
+        ),
+      );
   };
 
   quickOpen = () =>
@@ -292,23 +327,28 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     }
   };
 
-  deleteNode = (node?: Scratch | ScratchFolder) =>
-    node === undefined
-      ? Promise.resolve()
-      : this.fileSystemProvider
-          .delete(node.uri, { recursive: false })
-          .catch(
-            whenError(isNotEmptyDirectory, () =>
-              prompt
-                .confirm("Folder is not empty. Delete all of its' contents?")
-                .then(() => this.fileSystemProvider.delete(node.uri, { recursive: true })),
-            ),
-          )
-          .catch(err =>
-            match(err)
-              .when(isUserCancelled, pass())
-              .otherwise(err => prompt.warn(`Could not delete ${basename(node.uri.path)}: ${err}`)),
-          );
+  delete = (item?: Scratch | ScratchFolder | { uri: "${selectedItem}" }) => {
+    // vscode doesn't pass the current item when invoked via keybinding,
+    // so we pass a placeholder as defined in package.json and handle it here
+    const uri = item?.uri === "${selectedItem}" ? this.treeView.selection[0]?.uri : item?.uri;
+
+    if (uri === undefined) return;
+
+    return this.fileSystemProvider
+      .delete(uri, { recursive: false })
+      .catch(
+        whenError(isNotEmptyDirectory, () =>
+          prompt
+            .confirm("Folder is not empty. Delete all of its' contents?")
+            .then(() => this.fileSystemProvider.delete(uri, { recursive: true })),
+        ),
+      )
+      .catch(err =>
+        match(err)
+          .when(isUserCancelled, pass())
+          .otherwise(err => prompt.warn(`Could not delete ${basename(uri.path)}: ${err}`)),
+      );
+  };
 
   toggleSortOrder = () => {
     const order = (this.treeDataProvider.sortOrder + 1) % SortOrderLength;

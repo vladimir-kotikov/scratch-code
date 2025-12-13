@@ -4,8 +4,8 @@ import * as vscode from "vscode";
 import { FileChangeType, FileSystemProvider, FileType, Uri } from "vscode";
 import { DisposableContainer } from "../util/disposable";
 import { flat, map } from "../util/fu";
-import { asPromise, waitPromises } from "../util/promises";
-import { ScratchFileSystemProvider } from "./fs";
+import { asPromise, waitPromises, whenError } from "../util/promises";
+import { isaDirectoryError, ScratchFileSystemProvider } from "./fs";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const searchOptions: SearchOptions = {
@@ -73,21 +73,30 @@ export class SearchIndexProvider extends DisposableContainer {
   }
 
   private readDocument = (uri: Uri) =>
-    asPromise(this.fs.readFile(uri)).then(data => ({
-      id: uri.path.substring(1),
-      path: uri.path.substring(1),
-      content: decoder.decode(data),
-    }));
+    asPromise(this.fs.readFile(uri)).then(
+      data => ({
+        id: uri.path.substring(1),
+        path: uri.path.substring(1),
+        content: decoder.decode(data),
+      }),
+      whenError(isaDirectoryError, () => undefined),
+    );
 
   private addFile = (uri: Uri) =>
-    this.readDocument(uri)
-      .then(data => this.index.add(data))
-      .then(() => (this.hasChanged = true));
+    this.readDocument(uri).then(data => {
+      if (data) {
+        this.index.add(data);
+        this.hasChanged = true;
+      }
+    });
 
   private updateFile = (uri: Uri) =>
-    this.readDocument(uri)
-      .then(data => this.index.replace(data))
-      .then(() => (this.hasChanged = true));
+    this.readDocument(uri).then(data => {
+      if (data) {
+        this.index.replace(data);
+        this.hasChanged = true;
+      }
+    });
 
   private removeFile = (uri: Uri) => {
     this.index.discard(uri.path.substring(1));

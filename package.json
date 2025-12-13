@@ -55,7 +55,7 @@
       },
       {
         "command": "scratches.renameScratch",
-        "title": "Rename",
+        "title": "Rename...",
         "category": "Scratches"
       },
       {
@@ -66,7 +66,7 @@
       },
       {
         "command": "scratches.delete",
-        "title": "Delete Scratch...",
+        "title": "Delete",
         "category": "Scratches",
         "icon": "$(trash)"
       },
@@ -95,6 +95,17 @@
         "icon": "$(pinned)"
       }
     ],
+    "keybindings": [
+      {
+        "key": "Ctrl+backspace",
+        "mac": "Cmd+backspace",
+        "command": "scratches.delete",
+        "when": "scratchesView",
+        "args": {
+          "uri": "${selectedItem}"
+        }
+      }
+    ],
     "configuration": {
       "title": "Scratches",
       "properties": {
@@ -107,7 +118,7 @@
     "views": {
       "explorer": [
         {
-          "id": "scratches",
+          "id": "scratchesView",
           "name": "Scratches",
           "icon": "resources/folder.svg"
         }
@@ -115,7 +126,7 @@
     },
     "viewsWelcome": [
       {
-        "view": "scratches",
+        "view": "scratchesView",
         "contents": "No scratches found\n[Create a new one](command:scratches.newScratch)"
       }
     ],
@@ -123,44 +134,49 @@
       "view/title": [
         {
           "command": "scratches.toggleSort",
-          "when": "view == scratches",
+          "when": "view == scratchesView",
           "group": "navigation@1"
         },
         {
           "command": "scratches.newScratch",
-          "when": "view == scratches",
+          "when": "view == scratchesView",
           "group": "navigation@2"
         },
         {
           "command": "scratches.openDirectory",
-          "when": "view == scratches",
+          "when": "view == scratchesView",
           "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
-          "command": "scratches.newFolder",
-          "when": "view == scratches",
-          "group": "1_modification"
+          "command": "scratches.newScratch",
+          "when": "view == scratchesView",
+          "group": "1_create"
         },
         {
-          "command": "scratches.delete",
-          "when": "view == scratches && (viewItem == 'folder' || viewItem == 'scratch')",
-          "group": "2_deletion"
+          "command": "scratches.newFolder",
+          "when": "view == scratchesView",
+          "group": "1_create"
         },
         {
           "command": "scratches.renameScratch",
-          "when": "view == scratches",
-          "group": "1_modification"
+          "when": "view == scratchesView",
+          "group": "2_delete"
+        },
+        {
+          "command": "scratches.delete",
+          "when": "view == scratchesView && (viewItem == 'folder' || viewItem == 'scratch')",
+          "group": "2_delete"
         },
         {
           "command": "scratches.pin",
-          "when": "view == scratches && viewItem != 'pinned'",
+          "when": "view == scratchesView && viewItem != 'pinned'",
           "group": "inline"
         },
         {
           "command": "scratches.unpin",
-          "when": "view == scratches && viewItem == 'pinned'",
+          "when": "view == scratchesView && viewItem == 'pinned'",
           "group": "inline"
         }
       ]

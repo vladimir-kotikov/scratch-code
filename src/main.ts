@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
     vscode.commands.registerCommand("scratches.newFolder", extension.newFolder),
-    vscode.commands.registerCommand("scratches.delete", extension.deleteNode),
+    vscode.commands.registerCommand("scratches.delete", extension.delete),
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
     vscode.commands.registerCommand("scratches.search.quickSearch", extension.quickSearch),
     vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),

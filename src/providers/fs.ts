@@ -26,9 +26,11 @@ const isNotFoundError = (err: unknown): boolean =>
 export const isFileExistsError = (err: unknown): boolean =>
   isFileSystemError(err) && err.code === "FileExists";
 
+export const isaDirectoryError = (err: unknown): boolean =>
+  isFileSystemError(err) && err.code === "FileIsADirectory";
+
 export const isNotEmptyDirectory = (err: unknown): boolean =>
-  // TODO: check if this is the correct code
-  isFileSystemError(err) && err.code === "DirectoryNotEmpty";
+  (err as { message?: string }).message?.includes("ENOTEMPTY") ?? false;
 
 const isFile = (stat: FileStat): boolean =>
   stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
@@ -124,7 +126,10 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   readDirectory = (uri: Uri): Thenable<[string, FileType][]> =>
     vscode.workspace.fs.readDirectory(this.toFilesystemUri(uri));
 
-  createDirectory = (uri: Uri) => vscode.workspace.fs.createDirectory(this.toFilesystemUri(uri));
+  createDirectory = (uri: Uri) =>
+    vscode.workspace.fs.createDirectory(this.toFilesystemUri(uri)).then(() => {
+      this.fireChangeEvents([{ type: FileChangeType.Created, uri }]);
+    });
 
   readFile = (uri: Uri): Thenable<Uint8Array> =>
     vscode.workspace.fs.readFile(this.toFilesystemUri(uri));

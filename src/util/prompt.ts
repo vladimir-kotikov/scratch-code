@@ -34,12 +34,13 @@ export const input = (
     v === undefined ? UserCancelled.reject : v,
   );
 
-export const filename = (title: string, value?: string) =>
+export const filename = (title: string, value: string = "") =>
   input(title, value, {
+    valueSelection: [value.length, value.length],
     validateInput: (filename: string) =>
       isEmpty(filename)
         ? "Filename cannot be empty"
-        : !/^[^\\/:*?"<>|]+$/.test(filename)
+        : !/^[^:*?"<>|]+$/.test(filename)
           ? "Filename cannot contain special characters"
           : null,
   });

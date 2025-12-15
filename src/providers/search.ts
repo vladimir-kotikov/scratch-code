@@ -82,31 +82,27 @@ export class SearchIndexProvider extends DisposableContainer {
       whenError(isaDirectoryError, () => undefined),
     );
 
-  private addFile = (uri: Uri) =>
-    this.readDocument(uri).then(data => {
-      if (data) {
-        this.index.add(data);
-        this.hasChanged = true;
-      }
-    });
-
   private updateFile = (uri: Uri) =>
     this.readDocument(uri).then(data => {
       if (data) {
-        this.index.replace(data);
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        this.index.has(data.id) ? this.index.replace(data) : this.index.add(data);
         this.hasChanged = true;
       }
     });
 
   private removeFile = (uri: Uri) => {
-    this.index.discard(uri.path.substring(1));
-    this.hasChanged = true;
+    const docId = uri.path.substring(1);
+    if (this.index.has(docId)) {
+      this.index.discard(docId);
+      this.hasChanged = true;
+    }
   };
 
   private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
     match(change)
       .with({ type: FileChangeType.Deleted, uri: P.select() }, this.removeFile)
-      .with({ type: FileChangeType.Created, uri: P.select() }, this.addFile)
+      .with({ type: FileChangeType.Created, uri: P.select() }, this.updateFile)
       .with({ type: FileChangeType.Changed, uri: P.select() }, this.updateFile)
       .otherwise(c => console.error("Unhandled file change event", c));
 
@@ -141,7 +137,7 @@ export class SearchIndexProvider extends DisposableContainer {
     this.index.removeAll();
     this.hasChanged = true;
     return readTree(this.fs, ScratchFileSystemProvider.ROOT)
-      .then(map(this.addFile))
+      .then(map(this.updateFile))
       .then(waitPromises)
       .then(this.save);
   };

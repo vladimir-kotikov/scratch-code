@@ -100,9 +100,13 @@ export class ScratchTreeProvider
   extends DisposableContainer
   implements TreeDataProvider<ScratchTreeNode>
 {
-  private _onDidChangeTreeData = new EventEmitter<Scratch | undefined>();
+  private _onDidChangeTreeData = new EventEmitter<
+    ScratchTreeNode | ScratchTreeNode[] | undefined
+  >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-  private reload = (item?: Scratch) => this._onDidChangeTreeData.fire(item);
+  private reload = (nodes?: ScratchTreeNode | ScratchTreeNode[]) =>
+    this._onDidChangeTreeData.fire(nodes);
+
   private pinStore: PinStore;
 
   constructor(
@@ -115,7 +119,19 @@ export class ScratchTreeProvider
       this.fileSystem,
     );
 
-    this.disposeLater(this.fileSystem.onDidChangeFile(() => this.reload()));
+    this.disposeLater(
+      this.fileSystem.onDidChangeFile(() =>
+        // TODO: Instead of partial reload, just reload everything for now.
+        // This is suboptimal but at least works and allows to avoid internal
+        // state, caching issues, etc.
+        // The reason partial reload didn't work is that VSCode maintains
+        // its own cache of tree items in a map with the object (i.e scratch)
+        // as a key so in order to reload correctly it's required to pass the
+        // very same object instance, which means maintaining internal state,
+        // which I really want to avoid, at least for now.
+        this.reload(),
+      ),
+    );
     this.disposeLater(this.pinStore.onDidLoad(() => this.reload()));
   }
 

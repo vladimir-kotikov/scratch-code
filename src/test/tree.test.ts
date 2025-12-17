@@ -1,8 +1,8 @@
 import { strict as assert } from "assert";
 import { describe, it } from "mocha";
 import { Uri } from "vscode";
-import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "../../providers/tree";
-import { MockFS } from "../mock/fs";
+import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "../providers/tree";
+import { MockFS } from "./mock/fs";
 
 describe("ScratchTreeProvider", () => {
   it("sorts by most recent mtime", async () => {

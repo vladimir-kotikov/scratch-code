@@ -1,8 +1,8 @@
 import { strict as assert } from "assert";
 import { describe, it } from "mocha";
 import { Uri } from "vscode";
-import { PinStore } from "../../providers/pinStore";
-import { MockFS } from "../mock/fs";
+import { PinStore } from "../providers/pinStore";
+import { MockFS } from "./mock/fs";
 
 describe("PinStore", () => {
   it("initializes with empty store", async () => {

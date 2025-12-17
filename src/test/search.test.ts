@@ -4,8 +4,8 @@ import { describe, it } from "mocha";
 import * as os from "os";
 import * as path from "path";
 import { FileChangeType, Uri } from "vscode";
-import { SearchIndexProvider } from "../../providers/search";
-import { MockFS } from "../mock/fs";
+import { SearchIndexProvider } from "../providers/search";
+import { MockFS } from "./mock/fs";
 
 function indexFile({ create, content }: { create: boolean; content?: string } = { create: true }) {
   const filePath = path.join(os.tmpdir(), `scratch-index-${Date.now()}.json`);

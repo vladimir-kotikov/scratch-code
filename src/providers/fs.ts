@@ -30,8 +30,14 @@ export const isFileExistsError = (err: unknown): boolean =>
 export const isaDirectoryError = (err: unknown): boolean =>
   isFileSystemError(err) && err.code === "FileIsADirectory";
 
-export const isNotEmptyDirectory = (err: unknown): boolean =>
-  (err as { message?: string }).message?.includes("ENOTEMPTY") ?? false;
+export const isNotEmptyDirectory = (err: unknown): boolean => {
+  const message = (err as { message?: string }).message;
+  return (
+    message?.includes("ENOTEMPTY") ||
+    message?.startsWith("Unable to delete non-empty folder") ||
+    false
+  );
+};
 
 const isFile = (stat: FileStat): boolean =>
   stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);

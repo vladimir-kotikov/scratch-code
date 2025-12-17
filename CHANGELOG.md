@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.0]
+
+- Support for folders
+
 ## [0.3.0]
 
 - Complete drag and drop support

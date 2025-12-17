@@ -6,6 +6,7 @@ out
 \.*/**
 
 .vscode-test/
+.uitest-temp/
 
 eslint.config.mjs
 tsconfig.json

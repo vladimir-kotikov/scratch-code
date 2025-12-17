@@ -254,6 +254,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .then(content => this.createScratch(path.basename(uri.path), content, parent));
 
   newScratch = (parent?: ScratchFolder | Scratch) =>
+    // TODO: Reveal the created scratch in the tree view
     parent === undefined
       ? newScratchPicker(this.createScratch)
       : // When parent is a scratch, this means the command has been invoked
@@ -273,7 +274,12 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           : Uri.joinPath(parent.uri, "../");
 
     return prompt
-      .filename("Enter folder name (slashes for nested allowed)", parentUri.path.slice(1))
+      .filename(
+        "Enter folder name (slashes for nested allowed)",
+        // For root do not add extra slash, expect plain folder name,
+        // for nested directories show the current path with trailing slash
+        parentUri.path === "/" ? "" : parentUri.path.slice(1) + "/",
+      )
       .then(filename =>
         this.fileSystemProvider.createDirectory(
           Uri.joinPath(ScratchFileSystemProvider.ROOT, filename),

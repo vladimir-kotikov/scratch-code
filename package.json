@@ -183,10 +183,10 @@
     }
   },
   "scripts": {
+    "check-types": "tsc --noEmit",
     "compile": "npm run check-types && node .esbuild.js",
     "compile:tests": "tsc",
     "watch": "npx npm-run-all -p watch:*",
-    "check-types": "tsc --noEmit",
     "watch:esbuild": "node .esbuild.js --watch",
     "watch:tests": "tsc --watch",
     "vscode:prepublish": "npm run package",
@@ -194,27 +194,25 @@
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
     "test": "npx rimraf out && npm run compile:tests && vscode-test",
+    "ui:test": "npx extest run-tests 'out/ui-test/**/*.test.js' --storage .uitest-temp/ --code_version max --type stable --extensions_dir .uitest-temp/extensions",
     "prepare": "npx husky || true"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.10.1",
-    "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.105.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.0",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.1",
-    "glob": "^11.1.0",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "mocha": "^11.0.0",
     "prettier": "^3.6.2",
-    "sinon": "^21.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0"
+    "typescript-eslint": "^8.47.0",
+    "vscode-extension-tester": "^8.19.0"
   },
   "dependencies": {
     "minisearch": "^7.2.0",

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.1]
+
+- Add proper activity bar icon
+
 ## [0.4.0]
 
 - Support for folders

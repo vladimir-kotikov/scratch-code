@@ -1,9 +1,11 @@
 node_modules
 src
 out
+resources/extension.svg
 
 \.*
 \.*/**
+**/*.js.map
 
 .vscode-test/
 .uitest-temp/

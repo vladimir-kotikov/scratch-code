@@ -14,7 +14,7 @@
   "homepage": "https://github.com/vladimir-kotikov/scratch-code",
   "publisher": "vlkoti",
   "changelog": "CHANGELOG.md",
-  "icon": "icon.png",
+  "icon": "resources/extension.png",
   "engines": {
     "vscode": "^1.105.0"
   },
@@ -115,12 +115,21 @@
         }
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "scratchesContainer",
+          "title": "Scratches",
+          "icon": "resources/activity-bar.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "scratchesContainer": [
         {
           "id": "scratchesView",
           "name": "Scratches",
-          "icon": "resources/folder.svg"
+          "contextualTitle": "Scratches"
         }
       ]
     },

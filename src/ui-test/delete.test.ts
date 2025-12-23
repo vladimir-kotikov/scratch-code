@@ -5,7 +5,6 @@ import {
   getDialogWithText,
   getScratchesView,
   getTreeItem,
-  invalidateViewCache,
   makeScratchTree,
 } from "./helpers";
 
@@ -16,7 +15,6 @@ describe("Delete scratches and directories", () => {
     this.timeout(5000);
     this.currentTest?.timeout(5000);
     await dismissOpenDialogs();
-    invalidateViewCache();
     await clearScratchTree();
   });
 

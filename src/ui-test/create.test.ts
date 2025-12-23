@@ -4,11 +4,11 @@ import { Workbench } from "vscode-extension-tester";
 import {
   assertDefined,
   assertTreeOfShape,
+  callViewAction,
   clearScratchTree,
   dismissOpenDialogs,
   getScratchesView,
   getTreeItem,
-  invalidateViewCache,
   makeScratchTree,
   submitInput,
 } from "./helpers";
@@ -18,7 +18,6 @@ describe("Create scratches and directories", () => {
     this.timeout(5000);
     this.currentTest?.timeout(5000);
     await dismissOpenDialogs();
-    invalidateViewCache();
     await clearScratchTree();
   });
 
@@ -28,27 +27,24 @@ describe("Create scratches and directories", () => {
       .then(welcome =>
         assertDefined(welcome, "Welcome content not found").getButton("Create a new one"),
       )
-      .then(button => assertDefined(button, "Create button not found").click());
-
-    await submitInput("file1.txt");
+      .then(button => assertDefined(button, "Create button not found").click())
+      .then(() => submitInput("file1.txt"));
 
     await assertTreeOfShape(["file1.txt"]);
   });
 
   it("creates scratch from treeview action", async () => {
     await getScratchesView()
-      .then(view => view.getAction("New Scratch..."))
-      .then(action => assertDefined(action, "New Scratch action not found").click());
-
-    await submitInput("file2.txt");
+      .then(view => callViewAction(view, "New Scratch..."))
+      .then(() => submitInput("file2.txt"));
 
     await assertTreeOfShape(["file2.txt"]);
   });
 
   it("creates scratch from command palette action", async () => {
-    await new Workbench().executeCommand("Scratches: New Scratch...");
-
-    await submitInput("file3.txt");
+    await new Workbench()
+      .executeCommand("Scratches: New Scratch...")
+      .then(() => submitInput("file3.txt"));
 
     await assertTreeOfShape(["file3.txt"]);
   });
@@ -59,17 +55,16 @@ describe("Create scratches and directories", () => {
     await getScratchesView()
       .then(view => getTreeItem(view, "file1.txt"))
       .then(file => file.openContextMenu())
-      .then(menu => menu.select("New Scratch..."));
-
-    await submitInput("file4.txt");
+      .then(menu => menu.select("New Scratch..."))
+      .then(() => submitInput("file4.txt"));
 
     await assertTreeOfShape(["file4.txt", "file1.txt"]);
   });
 
   it("creates directory from command palette action", async () => {
-    await new Workbench().executeCommand("Scratches: New Folder...");
-
-    await submitInput("directory1");
+    await new Workbench()
+      .executeCommand("Scratches: New Folder...")
+      .then(() => submitInput("directory1"));
 
     await assertTreeOfShape(["directory1/"]);
   });
@@ -80,9 +75,8 @@ describe("Create scratches and directories", () => {
     await getScratchesView()
       .then(view => getTreeItem(view, "file1.txt"))
       .then(file => file.openContextMenu())
-      .then(menu => menu.select("New Folder..."));
-
-    await submitInput("directory2");
+      .then(menu => menu.select("New Folder..."))
+      .then(() => submitInput("directory2"));
 
     await assertTreeOfShape(["directory2/", "file1.txt"]);
   });

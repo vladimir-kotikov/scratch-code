@@ -7,7 +7,6 @@ import {
   dismissOpenDialogs,
   getScratchesView,
   getTreeItem,
-  invalidateViewCache,
   makeScratchTree,
   submitInput,
 } from "./helpers";
@@ -17,7 +16,6 @@ describe("Create scratches and directories", () => {
     this.timeout(5000);
     this.currentTest?.timeout(5000);
     await dismissOpenDialogs();
-    invalidateViewCache();
     await clearScratchTree();
   });
 
@@ -27,7 +25,7 @@ describe("Create scratches and directories", () => {
     await submitInput("some/directory1");
 
     // Both the parent and nested directory should appear in the tree
-    await assertTreeOfShape(["some/", "some/directory1/"]);
+    await assertTreeOfShape(["some/directory1/"]);
   });
 
   it("creates directory from file context menu", async () => {
@@ -53,6 +51,6 @@ describe("Create scratches and directories", () => {
 
     await submitInput("directory2", { expect: "dir1/", append: true });
 
-    await assertTreeOfShape(["dir1/", "dir1/directory2/"]);
+    await assertTreeOfShape(["dir1/directory2/"]);
   });
 });

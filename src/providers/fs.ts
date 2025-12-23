@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import { match } from "ts-pattern";
 import * as vscode from "vscode";
 import {
   Disposable,
@@ -13,7 +12,7 @@ import {
   FileType,
   Uri,
 } from "vscode";
-import { call, map } from "../util/fu";
+import { call, pass } from "../util/fu";
 import { batch } from "../util/functions";
 import { asPromise, whenError } from "../util/promises";
 
@@ -70,21 +69,6 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
     return Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/${relativePath}`);
   };
 
-  private createFileCreatedEvent = (filename: string) => [
-    { type: FileChangeType.Created, uri: this.toScratchUri(Uri.file(filename)) },
-  ];
-
-  private createFileChangedEvent = (filename: string) => [
-    { type: FileChangeType.Changed, uri: this.toScratchUri(Uri.file(filename)) },
-  ];
-
-  private createFileDeletedEvent = (filename: string) => [
-    {
-      type: FileChangeType.Deleted,
-      uri: this.toScratchUri(Uri.file(filename)),
-    },
-  ];
-
   watch = (
     uri?: Uri,
     options: {
@@ -94,54 +78,34 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   ): Disposable => {
     const watchUri = uri ?? ScratchFileSystemProvider.ROOT;
     const watchPath = this.toFilesystemUri(watchUri).fsPath;
-    let basePath = watchPath;
-    try {
-      basePath = fs.statSync(watchPath).isDirectory() ? watchPath : path.dirname(watchPath);
-    } catch {
-      // If the path doesn't exist, we can't watch it
-      return new Disposable(() => {});
-    }
+    const baseDirName = fs.statSync(watchPath).isDirectory() ? path.basename(watchPath) : null;
 
     const fireEvents = batch((events: FileChangeEvent[]) => {
       this._onDidChangeFile.fire(events);
-    }, 50);
+    }, 100);
 
     // Use node watcher as vscode.workspace version seem to be only
     // watching for changes within the workspace
-    const watcher = fs.watch(watchPath, { recursive: options.recursive }, (event, filename) =>
+    const watcher = fs.watch(watchPath, { recursive: options.recursive }, (event, filename) => {
       // Supposedly filename is relative to watchPath, but unsure
       // how's that's gonna work in case if watchPath is a file
-      match(event)
-        .with("change", () => {
-          return Promise.resolve([
-            {
-              type: FileChangeType.Changed,
-              uri: filename === null ? this.scratchDir : Uri.file(path.resolve(basePath, filename)),
-            },
-          ]);
-        })
-        .with("rename", () =>
-          filename !== null
-            ? fs.promises.stat(path.resolve(watchPath, filename)).then(
-                () => [
-                  {
-                    type: FileChangeType.Changed,
-                    uri: Uri.file(path.resolve(basePath, filename)),
-                  },
-                ],
-                () => [
-                  {
-                    type: FileChangeType.Deleted,
-                    uri: Uri.file(path.resolve(basePath, filename)),
-                  },
-                ],
-              )
-            : Promise.resolve([]),
-        )
-        .exhaustive()
-        .then(map(({ type, uri }) => ({ type, uri: this.toScratchUri(uri) })))
-        .then(fireEvents),
-    );
+      // FIXME: when the watched directory is changed, the basename of the directory is sent as filename (not empty/null/'/' as one might expect) so this needs to be checked and converted to /. However, there might be other files/directories with the same name inside the watched directory, so this can't be applied blindly.
+      const realFilename = filename === null || filename === baseDirName ? "" : filename;
+      const uri = Uri.joinPath(watchUri, realFilename);
+
+      const makeChangeEvent =
+        event === "change"
+          ? Promise.resolve({ type: FileChangeType.Changed, uri })
+          : // event === "rename"
+            fs.promises
+              .stat(path.resolve(watchPath, realFilename))
+              .then(
+                pass({ type: FileChangeType.Created, uri }),
+                pass({ type: FileChangeType.Deleted, uri }),
+              );
+
+      makeChangeEvent.then(e => fireEvents([e]));
+    });
 
     return new Disposable(() => {
       fireEvents.cancel();

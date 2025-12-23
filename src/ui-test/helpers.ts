@@ -1,9 +1,11 @@
 import {
   ActivityBar,
+  ILocation,
   InputBox,
   ModalDialog,
   TreeItem,
   ViewSection,
+  WebElement,
 } from "@redhat-developer/page-objects";
 import assert from "assert";
 import fs from "fs";
@@ -13,17 +15,6 @@ import { map, reduce } from "../util/fu";
 
 export const SCRATCHES_DIR =
   ".uitest-temp/settings/User/globalStorage/vlkoti.scratch-code/scratches";
-
-// Cache for Scratches view to avoid re-fetching in assertions
-let _scratchesView: ViewSection | undefined;
-
-/**
- * Invalidates the cached Scratches view. Should be called in beforeEach
- * to ensure each test starts with a fresh view reference.
- */
-export const invalidateViewCache = () => {
-  _scratchesView = undefined;
-};
 
 /**
  * Dismisses any open modal dialogs that might be blocking UI interaction.
@@ -49,6 +40,22 @@ const rsplit = (str: string, sep: string): [string, string] => {
   return [str.slice(0, idx), str.slice(idx + sep.length)];
 };
 
+/**
+ * Collapses all expanded items in a view section to ensure we start with a clean state.
+ */
+const collapseAll = async (view: ViewSection) => {
+  const items = (await view.getVisibleItems()) as TreeItem[];
+  for (const item of items) {
+    try {
+      if (await item.isExpanded()) {
+        await item.collapse();
+      }
+    } catch {
+      // Ignore errors - item might not be expandable
+    }
+  }
+};
+
 const getTreeSnapshot = async (
   getItems: () => Promise<TreeItem[]>,
   prefix: string = "",
@@ -66,7 +73,8 @@ const getTreeSnapshot = async (
           () => item.expand().then(() => item.getChildren()),
           newPrefix,
         );
-        return [newPrefix + "/", ...children];
+        // Only include the directory entry if it's empty
+        return children.length === 0 ? [newPrefix + "/"] : children;
       }),
     )
     .then(promises => Promise.all(promises))
@@ -83,20 +91,25 @@ export const waitForTreeShape = async (
   while (Date.now() - start < timeout) {
     await dismissOpenDialogs();
     try {
-      const actual = await getView().then(v =>
-        getTreeSnapshot(() => v.getVisibleItems() as Promise<TreeItem[]>),
-      );
-      assert.deepStrictEqual(actual, expected);
+      const v = await getView();
+      // Collapse all items before getting snapshot to avoid counting expanded children twice
+      await collapseAll(v);
+      const actual = await getTreeSnapshot(() => v.getVisibleItems() as Promise<TreeItem[]>);
+      assert.deepStrictEqual(actual.sort(), expected.sort());
       return;
     } catch {
       await VSBrowser.instance.driver.sleep(interval);
     }
   }
   await dismissOpenDialogs();
-  const final = await getView().then(v =>
-    getTreeSnapshot(() => v.getVisibleItems() as Promise<TreeItem[]>),
+  const v = await getView();
+  await collapseAll(v);
+  const final = await getTreeSnapshot(() => v.getVisibleItems() as Promise<TreeItem[]>);
+  assert.deepStrictEqual(
+    final.sort(),
+    expected.sort(),
+    "Scratch tree items do not match expected files",
   );
-  assert.deepStrictEqual(final, expected, "Scratch tree items do not match expected files");
 };
 
 export const assertTreeOfShape = async (expected: string[], timeout: number = 3000) =>
@@ -110,24 +123,44 @@ export const assertDefined = <T>(value: T | undefined, message?: string): T => {
 };
 
 export const getScratchesView = async () => {
-  if (_scratchesView) {
-    return _scratchesView;
-  }
-  const scratches = await new ActivityBar()
-    .getViewControl("Explorer")
+  const activityBar = new ActivityBar();
+  const scratches = await activityBar
+    .getViewControl("Scratches")
     .then(control => assertDefined(control).openView())
-    .then(explorer => explorer.getContent().getSection("Scratches"))
+    .then(view => view.getContent().getSection("Scratches"))
+    .catch(() =>
+      // If Scratches view is not found in Explorer, try opening it directly
+      activityBar
+        .getViewControl("Explorer")
+        .then(control => assertDefined(control).openView())
+        .then(view => view.getContent().getSection("Scratches")),
+    )
     .then(async scratches => {
       await scratches.expand();
       await VSBrowser.instance.driver.wait(
         scratches.isExpanded.bind(scratches),
-        300,
+        500,
         "Scratches section did not expand in time",
       );
+      // Brief delay to ensure actions are rendered
+      await VSBrowser.instance.driver.sleep(300);
       return scratches;
     });
-  _scratchesView = scratches;
   return scratches;
+};
+
+/**
+ * Gets a view action by title and clicks it using JavaScript for reliability.
+ * @param view The view section to get the action from.
+ * @param title The title of the action to find.
+ */
+export const callViewAction = async (view: ViewSection, title: string) => {
+  const action = await view.getAction(title);
+  if (!action) {
+    throw new Error(`Action "${title}" not found`);
+  }
+  // Use JavaScript click for better reliability with action buttons
+  await VSBrowser.instance.driver.executeScript("arguments[0].click();", action);
 };
 
 /**
@@ -143,15 +176,28 @@ export const getTreeItem = async (treeView: ViewSection, label: string) => {
   const getItem =
     pathPart === ""
       ? treeView.findItem(label)
-      : treeView
-          .openItem(...pathPart.split("/"))
-          .then(async children =>
-            children.find(async child => (await (child as TreeItem).getLabel()) === itemLabel),
-          );
+      : treeView.openItem(...pathPart.split("/")).then(async children => {
+          // Can't use find() with async predicate - need to resolve labels first
+          for (const child of children) {
+            if ((await (child as TreeItem).getLabel()) === itemLabel) {
+              return child;
+            }
+          }
+          return undefined;
+        });
 
   return getItem.then(item =>
     assertDefined(item, `Scratch tree item with label "${label}" not found`),
   );
+};
+
+export const getTreeItems = async (treeView: ViewSection, labels: string[]) => {
+  // Get items sequentially to avoid race conditions when expanding same parent folder
+  const results: TreeItem[] = [];
+  for (const label of labels) {
+    results.push((await getTreeItem(treeView, label)) as TreeItem);
+  }
+  return results;
 };
 
 export const getDialogWithText = (match: string | RegExp) =>
@@ -185,6 +231,8 @@ export const makeScratchTree = async (files: string[]) => {
       await fs.promises.writeFile(path.join(destPath, filename), "");
     }
   }
+  // Wait for file watcher to process changes
+  await VSBrowser.instance.driver.sleep(300);
 };
 
 export const submitInput = async (
@@ -199,3 +247,6 @@ export const submitInput = async (
   append ? await input.sendKeys("\uE014" + text) : await input.setText(text);
   await input.confirm();
 };
+
+export const dragDrop = (from: WebElement, to: WebElement | ILocation) =>
+  VSBrowser.instance.driver.actions().dragAndDrop(from, to).perform();

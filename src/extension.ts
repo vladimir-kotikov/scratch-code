@@ -308,7 +308,10 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   quickOpen = () =>
     prompt
-      .pick<ScratchQuickPickItem>(this.getQuickPickItems)
+      .pick<ScratchQuickPickItem>(this.getQuickPickItems, {
+        matchOnDescription: true,
+        matchOnDetail: true,
+      })
       .then(item => editor.openDocument(item.scratch.uri), whenError(isUserCancelled, pass()));
 
   quickSearch = () =>

@@ -17,7 +17,7 @@ import {
 import { DisposableContainer } from "./util/disposable";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
-import { asPromise, waitPromises, whenError } from "./util/promises";
+import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
 
@@ -162,19 +162,51 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private handleDrag = ([scratch, ..._]: Scratch[], dataTransfer: vscode.DataTransfer) =>
-    this.fileSystemProvider.readFile(scratch.uri).then(content => {
-      dataTransfer.set("text/uri-list", new vscode.DataTransferItem(scratch.uri.toString()));
+  private handleDrag = ([scratch, ..._]: Scratch[], dataTransfer: vscode.DataTransfer) => {
+    // TODO: Dragging folders is not yet supported
+    if (scratch instanceof ScratchFolder) return;
+    dataTransfer.set("text/uri-list", new vscode.DataTransferItem(scratch.uri.toString()));
+    dataTransfer.set(
+      "application/vnd.code.tree.scratchesView",
+      new vscode.DataTransferItem(scratch),
+    );
+  };
 
-      try {
-        dataTransfer.set(
-          "text/plain",
-          new vscode.DataTransferItem(Buffer.from(content).toString("utf8")),
-        );
-      } catch {
-        /* empty */
-      }
-    });
+  private handleUriDrop = (dataTransfer: vscode.DataTransfer, parent: Uri) => {
+    return dataTransfer
+      .get("text/uri-list")
+      ?.asString()
+      .then(uris => splitLines(uris))
+      .then(lines => {
+        return lines
+          .map(line => Uri.parse(line))
+          .filter(uri => uri.scheme === ScratchFileSystemProvider.SCHEME);
+      })
+      .then(
+        map(uri => {
+          return uri.fsPath === "/"
+            ? this.newScratchFromEditor(parent)
+            : this.newScratchFromFile(uri, parent);
+        }),
+      )
+      .then(promises => Promise.all(promises))
+      .then(pass());
+  };
+
+  private handleScratchDrop = (dataTransfer: vscode.DataTransfer, parent: Uri) => {
+    const scratch = dataTransfer.get("application/vnd.code.tree.scratchesView")?.value;
+    return scratch
+      ? this.rename(scratch, Uri.joinPath(parent, path.basename(scratch.uri.path)))
+      : undefined;
+  };
+
+  private handleFileDrop = (dataTransfer: vscode.DataTransfer, parent: Uri) => {
+    const file = dataTransfer.get("text/plain")?.asFile();
+    return file
+      ?.data()
+      .then(data => this.createScratch(file.name, data, parent))
+      .then(pass());
+  };
 
   // TODO: Test dropping plain text
   private handleDrop = (
@@ -188,27 +220,11 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           ? target.uri
           : Uri.joinPath(target.uri, "../");
 
-    const file = dataTransfer.get("text/plain")?.asFile();
-    return file
-      ? file
-          .data()
-          .then(data => this.createScratch(file.name, data, parent))
-          .then(pass())
-      : dataTransfer
-          .get("text/uri-list")
-          ?.asString()
-          .then(uris =>
-            splitLines(uris)
-              .map(line => Uri.parse(line))
-              .filter(uri => uri.scheme !== "scratch")
-              .map(uri =>
-                uri.fsPath === "/"
-                  ? this.newScratchFromEditor(parent)
-                  : this.newScratchFromFile(uri, parent),
-              ),
-          )
-          .then(waitPromises)
-          .then(pass());
+    return (
+      this.handleScratchDrop(dataTransfer, parent) ??
+      this.handleUriDrop(dataTransfer, parent) ??
+      this.handleFileDrop(dataTransfer, parent)
+    );
   };
 
   private createScratch = async (
@@ -262,7 +278,10 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         this.createScratch(
           undefined,
           "",
-          parent instanceof ScratchFolder ? parent.uri : Uri.joinPath(parent.uri, "../"),
+          parent instanceof ScratchFolder
+            ? // Append trailing slash for folders to indicate nesting
+              parent.uri.with({ path: parent.uri.path + "/" })
+            : Uri.joinPath(parent.uri, "../"),
         );
 
   newFolder = (parent?: ScratchFolder | Scratch) => {
@@ -307,30 +326,30 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .reset()
       .then(() => prompt.info("Scratches: search index rebuilt, documents: " + this.index.size()));
 
-  renameScratch = async (scratch?: Scratch) => {
-    const uri = scratch?.uri ?? currentScratchUri();
-    if (!uri) {
-      return;
-    }
+  rename = async (scratch?: Scratch, to?: Uri) => {
+    const from = scratch?.uri ?? currentScratchUri();
+    if (from === undefined) return;
 
-    const fileName = path.basename(uri.path);
-    const newName = await prompt.filename("Enter New Scratch Filename", fileName);
+    const toPromise =
+      to !== undefined
+        ? Promise.resolve(to)
+        : prompt
+            .filename("Enter New Scratch Filename", path.basename(from.path))
+            .then(filename => Uri.joinPath(ScratchFileSystemProvider.ROOT, filename));
 
-    if (!newName) {
-      return;
-    }
-
-    const newUri = uri.with({
-      path: path.join(path.dirname(uri.path), newName),
-    });
-    await this.fileSystemProvider.rename(uri, newUri);
-
-    // If there was no scratch then we just renamed a scratch opened in the
-    // current editor so close it and reopen with the new name
-    if (!scratch) {
-      await editor.closeCurrent();
-      await editor.openDocument(newUri);
-    }
+    return toPromise
+      .then(to =>
+        this.fileSystemProvider
+          .rename(from, to, { overwrite: false })
+          .catch(
+            whenError(isFileExistsError, () =>
+              prompt
+                .confirm(`File ${path.basename(to.path)} already exists, overwrite?`)
+                .then(() => this.fileSystemProvider.rename(from, to, { overwrite: true })),
+            ),
+          ),
+      )
+      .then(pass(), whenError(isUserCancelled, pass()));
   };
 
   delete = (item?: Scratch | ScratchFolder | { uri: "${selectedItem}" }) => {

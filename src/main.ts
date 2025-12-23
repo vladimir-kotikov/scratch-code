@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickOpen),
     vscode.commands.registerCommand("scratches.search.quickSearch", extension.quickSearch),
     vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),
-    vscode.commands.registerCommand("scratches.renameScratch", extension.renameScratch),
+    vscode.commands.registerCommand("scratches.renameScratch", extension.rename),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     vscode.commands.registerCommand("scratches.pin", extension.pinScratch),

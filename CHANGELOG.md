@@ -1,5 +1,9 @@
 # Changelog
 
+££ [0.4.2]
+
+- Minor improvements and UX polish for drag and drop and move/rename operations
+
 ## [0.4.1]
 
 - Add proper activity bar icon

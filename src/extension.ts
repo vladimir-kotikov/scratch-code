@@ -176,17 +176,15 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     return dataTransfer
       .get("text/uri-list")
       ?.asString()
-      .then(uris => splitLines(uris))
-      .then(lines => {
-        return lines
-          .map(line => Uri.parse(line))
-          .filter(uri => uri.scheme === ScratchFileSystemProvider.SCHEME);
-      })
+      .then(splitLines)
+      .then(map(Uri.parse))
       .then(
         map(uri => {
-          return uri.fsPath === "/"
-            ? this.newScratchFromEditor(parent)
-            : this.newScratchFromFile(uri, parent);
+          return uri.scheme === ScratchFileSystemProvider.SCHEME
+            ? this.rename(uri, Uri.joinPath(parent, path.basename(uri.path)))
+            : uri.fsPath === "/"
+              ? this.newScratchFromEditor(parent)
+              : this.newScratchFromFile(uri, parent);
         }),
       )
       .then(promises => Promise.all(promises))
@@ -255,14 +253,16 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   // TODO: Drop now unnecessary functionality
-  private newScratchFromEditor = async (parent?: Uri) =>
-    editor.getCurrentDocument()
+  private newScratchFromEditor = async (parent?: Uri) => {
+    const doc = editor.getCurrentDocument();
+    return doc
       ? this.createScratch(
-          path.basename(editor.getCurrentDocument()!.fileName),
-          editor.getCurrentContent(),
+          doc.isUntitled ? undefined : path.basename(doc.fileName),
+          doc.getText(),
           parent,
         )
       : undefined;
+  };
 
   private newScratchFromFile = async (uri: Uri, parent?: Uri) =>
     vscode.workspace.fs
@@ -329,8 +329,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .reset()
       .then(() => prompt.info("Scratches: search index rebuilt, documents: " + this.index.size()));
 
-  rename = async (scratch?: Scratch, to?: Uri) => {
-    const from = scratch?.uri ?? currentScratchUri();
+  rename = async (scratch?: Scratch | Uri, to?: Uri) => {
+    const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? currentScratchUri();
     if (from === undefined) return;
 
     const toPromise =

@@ -9,7 +9,6 @@ import { SearchIndexProvider } from "./providers/search";
 import {
   Scratch,
   ScratchFolder,
-  ScratchQuickPickItem,
   ScratchTreeProvider,
   SortOrder,
   SortOrderLength,
@@ -19,7 +18,7 @@ import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
 import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
+import { isUserCancelled, PickerItemButton } from "./util/prompt";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
 
@@ -49,24 +48,20 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
 
-  private readonly pinQuickPickItemButton: prompt.PickerItemButton<
-    prompt.PickerItem<{ scratch: Scratch }>
-  > = {
+  private readonly pinQuickPickItemButton: PickerItemButton<{ uri: Uri }> = {
     tooltip: "Pin scratch",
     iconPath: new vscode.ThemeIcon("pin"),
     onClick: ({ item, setItems }) => {
-      this.pinScratch(item.scratch);
+      this.pinScratch(item.uri);
       setItems(this.getQuickPickItems);
     },
   };
 
-  private readonly unpinQuickPickItemButton: prompt.PickerItemButton<
-    prompt.PickerItem<{ scratch: Scratch }>
-  > = {
+  private readonly unpinQuickPickItemButton: PickerItemButton<{ uri: Uri }> = {
     tooltip: "Unpin scratch",
     iconPath: new vscode.ThemeIcon("pinned"),
     onClick: ({ item, setItems }) => {
-      this.unpinScratch(item.scratch);
+      this.unpinScratch(item.uri);
       setItems(this.getQuickPickItems);
     },
   };
@@ -124,40 +119,32 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     );
   }
 
-  private getQuickPickItems = (): PromiseLike<(PickerItem<{ scratch: Scratch }> | Separator)[]> =>
-    this.treeDataProvider
-      .getFlatTree(this.treeDataProvider.sortOrder)
-      .then(
-        map(
-          scratch =>
-            ({
-              ...scratch.toQuickPickItem(),
-              buttons: scratch.isPinned
-                ? [this.unpinQuickPickItemButton]
-                : [this.pinQuickPickItemButton],
-            }) as prompt.PickerItem<{ scratch: Scratch }> | Separator,
-        ),
-      )
-      .then(items => {
-        const firstUnpinned = items.findIndex(
-          (item, i) =>
-            item.kind !== vscode.QuickPickItemKind.Separator && !item.scratch.isPinned && i > 0,
-        );
-        return firstUnpinned > 0
-          ? items.toSpliced(firstUnpinned, 0, {
-              label: "Scratches",
-              kind: vscode.QuickPickItemKind.Separator,
-            })
-          : items;
-      });
+  private getQuickPickItems = (): Promise<
+    Array<prompt.PickerItem<{ uri: Uri }> | prompt.Separator>
+  > =>
+    this.treeDataProvider.getFlatTree(this.treeDataProvider.sortOrder).then(
+      map(scratch => ({
+        ...scratch.toQuickPickItem(),
+        buttons: scratch.isPinned ? [this.unpinQuickPickItemButton] : [this.pinQuickPickItemButton],
+      })),
+    );
 
-  private getQuickSearchItems = (value?: string) =>
-    this.index.search(value ?? "").map(result => ({
-      label: result.path,
-      detail: result.textMatch,
-      iconPath: vscode.ThemeIcon.File,
-      uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
-    }));
+  private getQuickSearchItems = (value: string = ""): Array<prompt.PickerItem<{ uri: Uri }>> =>
+    value === ""
+      ? [
+          {
+            label: "Type to search...",
+            alwaysShow: true,
+            uri: null as unknown as Uri, // Placeholder URI
+          },
+        ]
+      : this.index.search(value).map(result => ({
+          label: result.path,
+          detail: result.textMatch,
+          iconPath: vscode.ThemeIcon.File,
+          alwaysShow: true,
+          uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
+        }));
 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
@@ -306,31 +293,37 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       );
   };
 
-  quickOpen = () =>
+  quickPick = (initialValue: string = "") =>
     prompt
-      .pick<ScratchQuickPickItem>(this.getQuickPickItems, {
-        matchOnDescription: true,
-        matchOnDetail: true,
-      })
-      .then(item => editor.openDocument(item.scratch.uri), whenError(isUserCancelled, pass()));
-
-  quickSearch = () =>
-    prompt
-      .pick<vscode.QuickPickItem & { uri: vscode.Uri }>(this.getQuickSearchItems, {
-        onValueChange: ({ value, setItems }) => setItems(() => this.getQuickSearchItems(value)),
-        title: "Search scratches",
-        buttons: [
-          {
-            tooltip: "Refresh index",
-            iconPath: new vscode.ThemeIcon("refresh"),
-            onClick: ({ value, setItems }) =>
-              this.resetIndex().then(() => setItems(() => this.getQuickSearchItems(value))),
+      .pick<{ uri: Uri }>(
+        initialValue === "?"
+          ? () => this.getQuickSearchItems(initialValue.substring(1))
+          : this.getQuickPickItems,
+        {
+          onValueChange: ({ value, setItems }) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            value.startsWith("?")
+              ? setItems(() => this.getQuickSearchItems(value.substring(1)))
+              : value === ""
+                ? setItems(this.getQuickPickItems)
+                : undefined;
           },
-        ],
-        matchOnDescription: true,
-        matchOnDetail: true,
-        ignoreFocusOut: DEBUG,
-      })
+          title: "Search scratches",
+          placeholder: "Type to search scratches (prefix with ? for full-text search)",
+          buttons: [
+            {
+              tooltip: "Refresh index",
+              iconPath: new vscode.ThemeIcon("refresh"),
+              onClick: ({ value, setItems }) =>
+                this.resetIndex().then(() => setItems(() => this.getQuickSearchItems(value))),
+            },
+          ],
+          initialValue,
+          matchOnDescription: true,
+          matchOnDetail: true,
+          ignoreFocusOut: DEBUG,
+        },
+      )
       .then(item => editor.openDocument(item.uri), whenError(isUserCancelled, pass()));
 
   resetIndex = async () =>
@@ -395,11 +388,13 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
 
-  pinScratch = async (scratch?: Scratch) =>
-    this.treeDataProvider.pinScratch(scratch ?? this.treeDataProvider.getItem(currentScratchUri()));
+  pinScratch = async (scratch?: Scratch | Uri) =>
+    this.treeDataProvider.pinScratch(
+      scratch instanceof Uri ? scratch : (scratch?.uri ?? currentScratchUri()),
+    );
 
-  unpinScratch = async (scratch?: Scratch) =>
+  unpinScratch = async (scratch?: Scratch | Uri) =>
     this.treeDataProvider.unpinScratch(
-      scratch ?? this.treeDataProvider.getItem(currentScratchUri()),
+      scratch instanceof Uri ? scratch : (scratch?.uri ?? currentScratchUri()),
     );
 }

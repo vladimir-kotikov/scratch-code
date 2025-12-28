@@ -121,7 +121,7 @@ describe("ScratchTreeProvider", () => {
     const children = await provider.getChildren();
     const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
     if (scratch instanceof Scratch) {
-      provider.pinScratch(scratch);
+      provider.pinScratch(scratch.uri);
       await new Promise(resolve => setTimeout(resolve, 10));
       const updatedChildren = await provider.getChildren();
       const pinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
@@ -145,7 +145,7 @@ describe("ScratchTreeProvider", () => {
     const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
     assert.ok(scratch instanceof Scratch);
     assert.strictEqual(scratch.isPinned, true);
-    provider.unpinScratch(scratch);
+    provider.unpinScratch(scratch.uri);
     await new Promise(resolve => setTimeout(resolve, 10));
     const updatedChildren = await provider.getChildren();
     const unpinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");

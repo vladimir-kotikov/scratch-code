@@ -72,17 +72,21 @@ const newScratchItem = (
 const suggestFilenamesButton = (
   insertSuggestionsAt: number = 0,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-): prompt.PickerButton<prompt.PickerItem<{}>> => ({
+): prompt.PickerButton<{}> => ({
   tooltip: "Generate Filename Suggestions",
   iconPath: { id: "lightbulb-sparkle" },
   onClick: ({ items, setItems, setValue }) =>
     setItems(() =>
       suggestFilenames(editor.getCurrentDocument()).then(suggestions =>
         suggestions.length === 0
-          ? items
+          ? [...items]
           : // When suggestions are available, reset the value so they are visible
             (setValue(""),
-            items.toSpliced(insertSuggestionsAt, 0, ...suggestions.map(makeFilenameSuggestion))),
+            [...items].toSpliced(
+              insertSuggestionsAt,
+              0,
+              ...suggestions.map(makeFilenameSuggestion),
+            )),
       ),
     ),
 });

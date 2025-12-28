@@ -4,6 +4,8 @@ import { DisposableContainer } from "./disposable";
 import { identity } from "./fu";
 import { asPromise } from "./promises";
 
+type MaybeAsync<T> = T | PromiseLike<T>;
+
 const isEmpty = (str: string) => str.trim().length === 0;
 
 export class UserCancelled extends Error {
@@ -50,35 +52,42 @@ export const confirm = (message: string) =>
     vscode.window.showInformationMessage(message, { modal: true }, "Yes"),
   );
 
-export type PickerItem<T extends Record<string, unknown> = Record<string, unknown>> = Omit<
+type ProvidePickerItemsFn<T extends Record<string, unknown> = Record<string, unknown>> =
+  () => MaybeAsync<Array<PickerItem<T> | Separator>>;
+
+// Core item shape that callbacks receive (without onPick/buttons to avoid circularity)
+export type PickerItemCore<T extends Record<string, unknown> = Record<string, unknown>> = Omit<
   QuickPickItem,
   "buttons"
 > &
-  T & {
-    onPick?: (e: { item: PickerItem<T>; value: string }) => unknown;
-    buttons?: PickerItemButton<PickerItem<T>>[];
+  T;
+
+export type PickerItem<T extends Record<string, unknown> = Record<string, unknown>> =
+  PickerItemCore<T> & {
+    onPick?: (e: { item: PickerItemCore<T>; value: string }) => unknown;
+    buttons?: PickerItemButton<T>[];
   };
 
-export type PickerItemButton<Item extends QuickPickItem> = QuickInputButton & {
-  onClick: (e: {
-    item: Item;
-    setItems: (items: () => (Item | Separator)[] | PromiseLike<(Item | Separator)[]>) => void;
-  }) => void;
-};
+export type PickerItemButton<T extends Record<string, unknown> = Record<string, unknown>> =
+  QuickInputButton & {
+    onClick: (e: {
+      item: PickerItemCore<T>;
+      setItems: (items: ProvidePickerItemsFn<T>) => void;
+    }) => void;
+  };
 
-export type PickerButton<T extends QuickPickItem> = QuickInputButton & {
-  onClick: (e: {
-    items: readonly (T | Separator)[];
-    value: string;
-    setItems: (
-      items: () => readonly (T | Separator)[] | PromiseLike<readonly (T | Separator)[]>,
-    ) => unknown;
-    setValue: (value: string) => void;
-  }) => void;
-};
+export type PickerButton<T extends Record<string, unknown> = Record<string, unknown>> =
+  QuickInputButton & {
+    onClick: (e: {
+      value: string;
+      items: readonly (PickerItem<T> | Separator)[];
+      setValue: (value: string) => void;
+      setItems: (items: ProvidePickerItemsFn<T>) => unknown;
+    }) => void;
+  };
 
-export const pick = <T extends QuickPickItem>(
-  getItems: () => (T | Separator)[] | PromiseLike<(T | Separator)[]>,
+export const pick = <T extends Record<string, unknown>>(
+  getItems: ProvidePickerItemsFn<T>,
   {
     onValueChange,
     onPick,
@@ -92,13 +101,11 @@ export const pick = <T extends QuickPickItem>(
   }: {
     onValueChange?: (e: {
       value: string;
-      items: readonly (T | Separator)[];
-      setItems: (
-        items: () => readonly (T | Separator)[] | PromiseLike<readonly (T | Separator)[]>,
-      ) => void;
+      items: readonly (PickerItem<T> | Separator)[];
+      setItems: (items: ProvidePickerItemsFn<T>) => void;
     }) => void;
-    onPick?: (e: { item: T; value: string }) => unknown;
-    buttons?: PickerButton<T>[];
+    onPick?: (e: { item: PickerItem<T>; value: string }) => unknown;
+    buttons?: PickerButton<PickerItem<T>>[];
     matchOnDescription?: boolean;
     matchOnDetail?: boolean;
     title?: string;
@@ -107,7 +114,7 @@ export const pick = <T extends QuickPickItem>(
     ignoreFocusOut?: boolean;
   } = {},
 ) => {
-  const picker = vscode.window.createQuickPick<T | Separator>();
+  const picker = vscode.window.createQuickPick<PickerItem<T> | Separator>();
   picker.buttons = buttons ?? [];
   picker.placeholder = placeholder;
   picker.matchOnDescription = matchOnDescription ?? false;
@@ -116,9 +123,7 @@ export const pick = <T extends QuickPickItem>(
   picker.title = title;
   picker.ignoreFocusOut = ignoreFocusOut ?? false;
 
-  const setItems = (
-    itemsFn: () => readonly (T | Separator)[] | PromiseLike<readonly (T | Separator)[]>,
-  ) => {
+  const setItems = (itemsFn: ProvidePickerItemsFn<T>) => {
     picker.busy = true;
     asPromise(itemsFn()).then(items => {
       picker.items = items;
@@ -126,20 +131,13 @@ export const pick = <T extends QuickPickItem>(
     });
   };
 
-  const { promise, reject, resolve } = Promise.withResolvers<T>();
+  const { promise, reject, resolve } = Promise.withResolvers<PickerItem<T>>();
   const disposable = DisposableContainer.from(
     picker,
     picker.onDidAccept(() => {
-      // Separators cannot be selected, so we cast to T
-      const selected = picker.selectedItems[0] as T | undefined;
-      const callback =
-        (
-          selected as T & {
-            onPick?: (e: { item: T; value: string }) => unknown;
-          }
-        )?.onPick ??
-        onPick ??
-        identity;
+      // Separators cannot be selected, so we cast to PickerItem<T>
+      const selected = picker.selectedItems[0] as PickerItem<T> | undefined;
+      const callback = selected?.onPick ?? onPick ?? identity;
       picker.hide();
       return selected
         ? asPromise(callback({ item: selected, value: picker.value }))
@@ -159,7 +157,7 @@ export const pick = <T extends QuickPickItem>(
     ),
     picker.onDidTriggerItemButton(({ button, item }) =>
       (button as PickerItemButton<T>).onClick({
-        item: item as T,
+        item: item as PickerItemCore<T>,
         setItems,
       }),
     ),

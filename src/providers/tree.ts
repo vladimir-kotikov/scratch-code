@@ -4,7 +4,6 @@ import {
   EventEmitter,
   FileStat,
   FileType,
-  QuickPickItem,
   ThemeIcon,
   TreeDataProvider,
   TreeItem,
@@ -14,6 +13,7 @@ import {
 import { DisposableContainer } from "../util/disposable";
 import { filter, flat, item, map, pipe, sort, zip } from "../util/fu";
 import { asPromise } from "../util/promises";
+import { PickerItem } from "../util/prompt";
 import { ScratchFileSystemProvider } from "./fs";
 import { PinStore } from "./pinStore";
 
@@ -25,7 +25,6 @@ const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.
 
 const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
 
-export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
 export type ScratchTreeNode = Scratch | ScratchFolder;
 
 export class ScratchFolder {
@@ -67,11 +66,11 @@ export class Scratch {
     iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
   });
 
-  toQuickPickItem = (): ScratchQuickPickItem => ({
+  toQuickPickItem = (): PickerItem<{ uri: Uri }> => ({
     label: basename(this.uri.path),
     description: this.uri.path.substring(1),
     iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
-    scratch: this,
+    uri: this.uri,
   });
 }
 
@@ -198,16 +197,16 @@ export class ScratchTreeProvider
     }
   };
 
-  pinScratch = (scratch?: Scratch) => {
-    if (scratch) {
-      this.pinStore.pin(scratch.uri);
+  pinScratch = (uri?: Uri) => {
+    if (uri) {
+      this.pinStore.pin(uri);
       this.reload();
     }
   };
 
-  unpinScratch = (scratch?: Scratch) => {
-    if (scratch) {
-      this.pinStore.unpin(scratch.uri);
+  unpinScratch = (uri?: Uri) => {
+    if (uri) {
+      this.pinStore.unpin(uri);
       this.reload();
     }
   };

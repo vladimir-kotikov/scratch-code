@@ -136,6 +136,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
             label: "Type to search...",
             alwaysShow: true,
             uri: null as unknown as Uri, // Placeholder URI
+            // Return undefined to prevent picker from closing
+            onPick: () => undefined,
           },
         ]
       : this.index.search(value).map(result => ({

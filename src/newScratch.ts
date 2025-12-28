@@ -4,7 +4,7 @@ import * as editor from "./util/editor";
 import { pass } from "./util/fu";
 import { whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled, PickerItem } from "./util/prompt";
+import { isUserCancelled, PickerCallback, PickerItem } from "./util/prompt";
 
 import * as vscode from "vscode";
 
@@ -60,9 +60,9 @@ const suggestFilenames = (doc?: TextDocument) => {
 const newScratchItem = (
   label: string,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  onPick: (e: { item: PickerItem<{}>; value: string }) => unknown,
+  onPick: PickerCallback<{}>,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-): prompt.PickerItem<{}> => ({
+): PickerItem<{}> => ({
   iconPath: { id: "plus" },
   alwaysShow: true,
   label,
@@ -111,14 +111,18 @@ export const newScratchPicker = (createScratch: NewScratchPickerCallback) => {
   let suggestionsIndex = 0;
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   const choices: prompt.PickerItem<{}>[] = [
-    newScratchItem("Create Blank Scratch", ({ value }) => createScratch(value)),
+    newScratchItem("Create Blank Scratch", ({ item, value: filename }) => {
+      createScratch(filename);
+      return item;
+    }),
   ];
 
   if (hasNonEmptySelection) {
     choices.unshift(
-      newScratchItem("Create From Selection", ({ value }) =>
-        createScratch(value, editor.getCurrentSelection()),
-      ),
+      newScratchItem("Create From Selection", ({ item, value: filename }) => {
+        createScratch(filename, editor.getCurrentSelection());
+        return item;
+      }),
     );
   }
 
@@ -130,8 +134,12 @@ export const newScratchPicker = (createScratch: NewScratchPickerCallback) => {
     suggestionsIndex = 1;
   }
 
-  const createFromDocument = newScratchItem("Create From Current File", ({ value }) =>
-    createScratch(value, editor.getCurrentContent()),
+  const createFromDocument = newScratchItem(
+    "Create From Current File",
+    ({ item, value: filename }) => {
+      createScratch(filename, editor.getCurrentContent());
+      return item;
+    },
   );
 
   prompt
@@ -152,7 +160,10 @@ export const newScratchPicker = (createScratch: NewScratchPickerCallback) => {
         if (!items.includes(createFromDocument))
           return setItems(() => items.toSpliced(items.length - 1, 0, createFromDocument));
       },
-      onPick: ({ item: { label } }) => createScratch(label, editor.getCurrentContent()),
+      onPick: ({ item }) => {
+        createScratch(item.label, editor.getCurrentContent());
+        return item;
+      },
     })
     .catch(whenError(isUserCancelled, pass()));
 };

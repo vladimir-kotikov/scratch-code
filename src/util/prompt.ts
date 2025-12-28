@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { InputBoxOptions, QuickInputButton, QuickPickItem } from "vscode";
 import { DisposableContainer } from "./disposable";
-import { identity } from "./fu";
 import { asPromise } from "./promises";
 
 type MaybeAsync<T> = T | PromiseLike<T>;
@@ -55,6 +54,11 @@ export const confirm = (message: string) =>
 type ProvidePickerItemsFn<T extends Record<string, unknown> = Record<string, unknown>> =
   () => MaybeAsync<Array<PickerItem<T> | Separator>>;
 
+export type PickerCallback<T extends Record<string, unknown> = Record<string, unknown>> = (e: {
+  item: PickerItemCore<T>;
+  value: string;
+}) => MaybeAsync<PickerItemCore<T> | undefined>;
+
 // Core item shape that callbacks receive (without onPick/buttons to avoid circularity)
 export type PickerItemCore<T extends Record<string, unknown> = Record<string, unknown>> = Omit<
   QuickPickItem,
@@ -64,7 +68,7 @@ export type PickerItemCore<T extends Record<string, unknown> = Record<string, un
 
 export type PickerItem<T extends Record<string, unknown> = Record<string, unknown>> =
   PickerItemCore<T> & {
-    onPick?: (e: { item: PickerItemCore<T>; value: string }) => unknown;
+    onPick?: PickerCallback;
     buttons?: PickerItemButton<T>[];
   };
 
@@ -104,7 +108,7 @@ export const pick = <T extends Record<string, unknown>>(
       items: readonly (PickerItem<T> | Separator)[];
       setItems: (items: ProvidePickerItemsFn<T>) => void;
     }) => void;
-    onPick?: (e: { item: PickerItem<T>; value: string }) => unknown;
+    onPick?: PickerCallback<T>;
     buttons?: PickerButton<PickerItem<T>>[];
     matchOnDescription?: boolean;
     matchOnDetail?: boolean;
@@ -132,18 +136,26 @@ export const pick = <T extends Record<string, unknown>>(
   };
 
   const { promise, reject, resolve } = Promise.withResolvers<PickerItem<T>>();
+  const resolveAndHide = (item: PickerItem<T>) => {
+    resolve(item);
+    picker.hide();
+  };
+  const rejectAndHide = (err: unknown) => {
+    reject(err);
+    picker.hide();
+  };
   const disposable = DisposableContainer.from(
     picker,
     picker.onDidAccept(() => {
       // Separators cannot be selected, so we cast to PickerItem<T>
-      const selected = picker.selectedItems[0] as PickerItem<T> | undefined;
-      const callback = selected?.onPick ?? onPick ?? identity;
-      picker.hide();
-      return selected
-        ? asPromise(callback({ item: selected, value: picker.value }))
-            .then(() => resolve(selected))
-            .catch(reject)
-        : reject(UserCancelled.error);
+      const item = picker.selectedItems[0] as PickerItem<T> | undefined;
+      const callback = item?.onPick ?? onPick ?? ((({ item }) => item) as PickerCallback<T>);
+
+      return item
+        ? asPromise(callback({ item, value: picker.value }))
+            .then(result => result !== undefined && resolveAndHide(result as PickerItem<T>))
+            .catch(rejectAndHide)
+        : rejectAndHide(UserCancelled.error);
     }),
     picker.onDidTriggerButton(button =>
       (button as PickerButton<T>).onClick({

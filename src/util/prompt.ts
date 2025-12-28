@@ -157,6 +157,12 @@ export const pick = <T extends QuickPickItem>(
         setItems,
       }),
     ),
+    picker.onDidTriggerItemButton(({ button, item }) =>
+      (button as PickerItemButton<T>).onClick({
+        item: item as T,
+        setItems,
+      }),
+    ),
     picker.onDidHide(() => {
       disposable.dispose();
       reject(UserCancelled.error);

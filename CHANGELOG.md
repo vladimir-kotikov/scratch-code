@@ -1,6 +1,10 @@
 # Changelog
 
-££ [0.4.2]
+## [0.4.3]
+
+- Polish UX further (fix sorting, improve drag and drop, fix quick open matching)
+
+## [0.4.2]
 
 - Minor improvements and UX polish for drag and drop and move/rename operations
 

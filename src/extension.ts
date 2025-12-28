@@ -134,7 +134,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
           scratch =>
             ({
               ...scratch.toQuickPickItem(),
-              buttons: [this.pinQuickPickItemButton, this.unpinQuickPickItemButton],
+              buttons: scratch.isPinned
+                ? [this.unpinQuickPickItemButton]
+                : [this.pinQuickPickItemButton],
             }) as prompt.PickerItem<{ scratch: Scratch }> | Separator,
         ),
       )

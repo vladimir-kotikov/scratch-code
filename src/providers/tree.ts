@@ -26,9 +26,6 @@ const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.
 const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
 
 export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
-
-const ICON_PIN = new ThemeIcon("pinned");
-const ICON_UNPIN = new ThemeIcon("pin");
 export type ScratchTreeNode = Scratch | ScratchFolder;
 
 export class ScratchFolder {
@@ -65,27 +62,15 @@ export class Scratch {
       title: "Open",
       arguments: [this.uri],
     },
-    description: this.isPinned ? "pinned" : undefined,
     contextValue: this.isPinned ? "pinned" : "scratch",
     collapsibleState: TreeItemCollapsibleState.None,
-    iconPath: ThemeIcon.File,
+    iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
   });
 
   toQuickPickItem = (): ScratchQuickPickItem => ({
     label: basename(this.uri.path),
     description: this.uri.path.substring(1),
-    iconPath: ThemeIcon.File,
-    buttons: [
-      this.isPinned
-        ? {
-            iconPath: ICON_PIN,
-            tooltip: "Unpin scratch",
-          }
-        : {
-            iconPath: ICON_UNPIN,
-            tooltip: "Pin scratch",
-          },
-    ],
+    iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
     scratch: this,
   });
 }

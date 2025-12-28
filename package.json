@@ -62,7 +62,7 @@
         "command": "scratches.newFolder",
         "title": "New Folder...",
         "category": "Scratches",
-        "icon": "$(folder)"
+        "icon": "$(new-folder)"
       },
       {
         "command": "scratches.delete",
@@ -86,13 +86,13 @@
         "command": "scratches.pin",
         "title": "Pin",
         "category": "Scratches",
-        "icon": "$(pin)"
+        "icon": "$(pinned)"
       },
       {
         "command": "scratches.unpin",
         "title": "Unpin",
         "category": "Scratches",
-        "icon": "$(pinned)"
+        "icon": "$(pin)"
       }
     ],
     "keybindings": [
@@ -152,9 +152,14 @@
           "group": "navigation@2"
         },
         {
-          "command": "scratches.openDirectory",
+          "command": "scratches.newFolder",
           "when": "view == scratchesView",
           "group": "navigation@3"
+        },
+        {
+          "command": "scratches.openDirectory",
+          "when": "view == scratchesView",
+          "group": "menu@1"
         }
       ],
       "view/item/context": [
@@ -180,12 +185,12 @@
         },
         {
           "command": "scratches.pin",
-          "when": "view == scratchesView && viewItem != 'pinned'",
+          "when": "view == scratchesView && viewItem != 'pinned' && viewItem != 'folder'",
           "group": "inline"
         },
         {
           "command": "scratches.unpin",
-          "when": "view == scratchesView && viewItem == 'pinned'",
+          "when": "view == scratchesView && viewItem == 'pinned' && viewItem != 'folder'",
           "group": "inline"
         }
       ]

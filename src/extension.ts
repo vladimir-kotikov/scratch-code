@@ -115,10 +115,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
         Uri.joinPath(this.storageDir, "searchIndex.json"),
       ),
     );
+
     this.disposables.push(
-      this.index.onDidLoad(() =>
-        prompt.info(`Index ready, ${this.index.size()} documents in index`),
-      ),
       this.index.onLoadError(err => {
         this.index.reset();
         prompt.warn(`Index corrupted (${err}). Rebuilding...`);
@@ -320,6 +318,15 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     prompt
       .pick<vscode.QuickPickItem & { uri: vscode.Uri }>(this.getQuickSearchItems, {
         onValueChange: ({ value, setItems }) => setItems(() => this.getQuickSearchItems(value)),
+        title: "Search scratches",
+        buttons: [
+          {
+            tooltip: "Refresh index",
+            iconPath: new vscode.ThemeIcon("refresh"),
+            onClick: ({ value, setItems }) =>
+              this.resetIndex().then(() => setItems(() => this.getQuickSearchItems(value))),
+          },
+        ],
         matchOnDescription: true,
         matchOnDetail: true,
         ignoreFocusOut: DEBUG,

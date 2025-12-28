@@ -47,8 +47,6 @@ const getFirstMatch = (result: SearchResult & SearchDoc) => {
 };
 
 export class SearchIndexProvider extends DisposableContainer {
-  private hasChanged = false;
-  private saveTimer: NodeJS.Timeout;
   private index: MiniSearch<SearchDoc> = new MiniSearch<SearchDoc>(searchOptions);
 
   private _onDidLoad = this.disposeLater(new vscode.EventEmitter<void>());
@@ -62,13 +60,12 @@ export class SearchIndexProvider extends DisposableContainer {
     private readonly indexFile: Uri,
   ) {
     super();
+    this.load();
     this.disposeLater(this.fs.onDidChangeFile(map(this.updateIndexOnFileChange)));
-    this.saveTimer = setInterval(this.save, 15 * 60 * 1000);
   }
 
   dispose(): void {
     super.dispose();
-    clearInterval(this.saveTimer);
     this.save();
   }
 
@@ -84,19 +81,17 @@ export class SearchIndexProvider extends DisposableContainer {
 
   private updateFile = (uri: Uri) =>
     this.readDocument(uri).then(data => {
-      if (data) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        this.index.has(data.id) ? this.index.replace(data) : this.index.add(data);
-        this.hasChanged = true;
-      }
+      if (!data) return;
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      this.index.has(data.id) ? this.index.replace(data) : this.index.add(data);
+      return this.save();
     });
 
   private removeFile = (uri: Uri) => {
     const docId = uri.path.substring(1);
-    if (this.index.has(docId)) {
-      this.index.discard(docId);
-      this.hasChanged = true;
-    }
+    if (!this.index.has(docId)) return;
+    this.index.discard(docId);
+    return this.save();
   };
 
   private updateIndexOnFileChange = (change: vscode.FileChangeEvent) =>
@@ -128,14 +123,13 @@ export class SearchIndexProvider extends DisposableContainer {
       .catch(err => this._onLoadError.fire(err));
 
   save = () =>
-    this.hasChanged &&
-    vscode.workspace.fs
-      .writeFile(this.indexFile, Buffer.from(JSON.stringify(this.index.toJSON()), "utf8"))
-      .then(() => (this.hasChanged = false));
+    vscode.workspace.fs.writeFile(
+      this.indexFile,
+      Buffer.from(JSON.stringify(this.index.toJSON()), "utf8"),
+    );
 
   reset = () => {
     this.index.removeAll();
-    this.hasChanged = true;
     return readTree(this.fs, ScratchFileSystemProvider.ROOT)
       .then(map(this.updateFile))
       .then(waitPromises)

@@ -21,8 +21,9 @@ type FileTuple = [Uri, FileStat];
 
 const IGNORED_FILES = new Set([".DS_Store", ".pinstore"]);
 
-const isFile = (type: FileType) =>
-  type === FileType.File || type === (FileType.SymbolicLink | FileType.File);
+const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.File;
+
+const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
 
 export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
 
@@ -162,14 +163,22 @@ export class ScratchTreeProvider
     pipe(
       filter<FileTuple>(([uri]) => !IGNORED_FILES.has(basename(uri.path))),
       sort<FileTuple>(
-        // FileType is a enum with folder = 2 and file = 1, so sorting by
-        // descending FileType would put folders first. Also subtract
-        // SymbolicLink bit to ignore it.
-        sort.desc(sort.byNumericValue(([, { type }]) => (type &= FileType.SymbolicLink))),
-        sort.desc(sort.byBoolValue(([uri]) => this.pinStore.isPinned(uri))),
-        sortOrder === SortOrder.MostRecent
-          ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
-          : sort.byStringValue(([uri]) => uri.path),
+        // Order of comparators matters: LEFTMOST has highest precedence.
+        // 1) Group: folders before files (mask out SymbolicLink bit)
+        sort.byBoolValue(([, { type }]) => isDir(type)),
+        // 2) Within folders: always alphabetical, independent of tree sort order
+        sort.group(
+          ([, { type }]) => isDir(type),
+          sort.byStringValue(([uri]) => uri.path),
+        ),
+        // 3) Within files: pinned first, then by sort order
+        sort.group(
+          ([, { type }]) => isFile(type),
+          sort.byBoolValue(([uri]) => this.pinStore.isPinned(uri)),
+          sortOrder === SortOrder.MostRecent
+            ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
+            : sort.byStringValue(([uri]) => uri.path),
+        ),
       ),
       map<FileTuple, ScratchTreeNode>(([uri, { type }]) =>
         type === FileType.Directory

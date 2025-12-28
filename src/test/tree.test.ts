@@ -1,7 +1,13 @@
 import { strict as assert } from "assert";
 import { describe, it } from "mocha";
 import { Uri } from "vscode";
-import { Scratch, ScratchTreeProvider, SortOrder, SortOrderLength } from "../providers/tree";
+import {
+  Scratch,
+  ScratchFolder,
+  ScratchTreeProvider,
+  SortOrder,
+  SortOrderLength,
+} from "../providers/tree";
 import { MockFS } from "./mock/fs";
 
 describe("ScratchTreeProvider", () => {
@@ -365,5 +371,41 @@ describe("ScratchTreeProvider", () => {
       n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
     );
     assert(nonemptyLabels.includes("file.txt"));
+  });
+
+  it("orders folders before files regardless of mtime and pin", async () => {
+    const files = {
+      // Folders
+      folderA: { mtime: 1, type: 2 },
+      folderB: { mtime: 9999, type: 2 },
+      // Files with varying mtimes
+      "a.txt": { mtime: 500 },
+      "b.txt": { mtime: 10000 },
+      // Pin b.txt to ensure pinned doesn't override folder precedence
+      ".pinstore": { mtime: 0, content: "scratch:/b.txt\n" },
+    };
+    const provider = new ScratchTreeProvider(new MockFS(files));
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const children = await provider.getChildren();
+    // Assert that all folders come before any files
+    const firstFileIndex = children.findIndex(n => n instanceof Scratch);
+    const lastFolderIndex = children
+      .map((n, i) => (n instanceof ScratchFolder ? i : -1))
+      .reduce((a, b) => (b > a ? b : a), -1);
+    assert.ok(
+      firstFileIndex === -1 || lastFolderIndex < firstFileIndex,
+      "Folders must precede files",
+    );
+
+    // Folders should be sorted alphabetically despite mtime
+    const folderOrder = children
+      .filter(n => n instanceof ScratchFolder)
+      .map(n => (n as ScratchFolder).toTreeItem().label);
+    assert.deepEqual(folderOrder, ["folderA", "folderB"], "Folders must be alphabetical");
+
+    // And within files, pinned items should still come first
+    const fileOrder = children.filter(n => n instanceof Scratch).map(n => (n as Scratch).uri.path);
+    assert.deepEqual(fileOrder, ["/b.txt", "/a.txt"], "Pinned files should precede unpinned files");
   });
 });

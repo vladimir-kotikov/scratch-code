@@ -90,7 +90,7 @@ describe("fu utilities", () => {
         const sorted = sortFn(items);
         assert.deepEqual(
           sorted.map(x => x.name),
-          ["b", "d", "a", "c"],
+          ["a", "c", "b", "d"],
         );
       });
 
@@ -105,7 +105,7 @@ describe("fu utilities", () => {
         const sorted = sortFn(items);
         assert.deepEqual(
           sorted.map(x => x.name),
-          ["a", "c", "b"],
+          ["b", "a", "c"],
         );
       });
     });
@@ -120,7 +120,7 @@ describe("fu utilities", () => {
           { pinned: true, name: "c" },
         ];
         const sortFn = sort<Item>(
-          sort.desc(sort.byBoolValue(x => x.pinned)),
+          sort.byBoolValue(x => x.pinned),
           sort.byStringValue(x => x.name),
         );
         const sorted = sortFn(items);

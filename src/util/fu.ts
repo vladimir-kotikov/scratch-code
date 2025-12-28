@@ -78,15 +78,35 @@ export const tap =
     return value;
   };
 
+/**
+ * Composes multiple comparator functions into a single comparator.
+ * Precedence is left-to-right: the FIRST comparator has the HIGHEST precedence.
+ * Later comparators are only evaluated when all previous comparators return `0`.
+ */
 const composeComparators =
   <T>(...cmps: Cmp<T>[]): Cmp<T> =>
   (a: T, b: T) =>
     cmps.reduce((result, cmp) => (result !== 0 ? result : cmp(a, b)), 0);
 
+/**
+ * Stable sort by a sequence of comparators, where the LEFTMOST comparator has the
+ * highest precedence. Each subsequent comparator is applied only if the previous ones
+ * consider the items equal (i.e., return `0`).
+ */
 export const sort =
   <T>(...cmps: Cmp<T>[]) =>
   (arr: T[]): T[] =>
     arr.toSorted(composeComparators(...cmps));
+
+/**
+ * Applies sort to a group, specified by predicate so that only items falling within the same group are compared.
+ * @param fn - A function that determines the group of an item.
+ * @returns A comparator function that sorts items within the same group using the provided comparator.
+ */
+sort.group =
+  <T>(fn: (a: T) => boolean, ...cmps: Cmp<T>[]) =>
+  (a: T, b: T) =>
+    fn(a) && fn(b) ? composeComparators(...cmps)(a, b) : 0;
 
 sort.desc =
   <T>(fn: Cmp<T>) =>
@@ -104,11 +124,12 @@ sort.byStringValue =
     fn(a).localeCompare(fn(b));
 
 /**
- * Creates a comparator function that compares boolean values. The order is false < true so that falsy values come first.
+ * Creates a comparator function that compares boolean values. Default order is truthy before falsy (true < false is negative).
+ * Use `sort.desc` to flip to falsy-first.
  * @param fn - A function that extracts the boolean value from the items being compared.
  * @returns A comparator function that compares the boolean values.
  */
 sort.byBoolValue =
   <T>(fn: (a: T) => boolean) =>
   (a: T, b: T) =>
-    Number(fn(a)) - Number(fn(b));
+    Number(fn(b)) - Number(fn(a));

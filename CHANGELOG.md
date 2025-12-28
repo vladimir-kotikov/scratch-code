@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.4]
+
+- Fix loading index on extension start
+- Fix handling item buttons clicks in quick pick
+- Tree view and quick pick UI polish
+
 ## [0.4.3]
 
 - Polish UX further (fix sorting, improve drag and drop, fix quick open matching)

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.0 prerelease]
+
+- Add LM tools for reading and creating scratches to incorporate into Copilot workflows workflows
+
 ## [0.4.4]
 
 - Fix loading index on extension start

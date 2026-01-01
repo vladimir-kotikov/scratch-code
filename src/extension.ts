@@ -6,12 +6,7 @@ import { Uri } from "vscode";
 import { newScratchPicker } from "./newScratch";
 import { isFileExistsError, isNotEmptyDirectory, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
-import {
-  Scratch,
-  ScratchFolder,
-  ScratchTreeProvider,
-  SortOrderLength,
-} from "./providers/tree";
+import { Scratch, ScratchFolder, ScratchTreeProvider, SortOrderLength } from "./providers/tree";
 import { DisposableContainer } from "./util/containers";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";

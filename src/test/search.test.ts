@@ -16,14 +16,14 @@ function indexFile({ create, content }: { create: boolean; content?: string } = 
 
 describe("SearchIndexProvider", () => {
   it("returns empty on search with no files", () => {
-    const provider = new SearchIndexProvider(new MockFS({}), indexFile());
+    const provider = new SearchIndexProvider(new MockFS({}), indexFile(), "/");
     const results = provider.search("anything");
     assert.deepEqual(results, []);
     provider.dispose();
   });
 
   it("handles missing index file gracefully", () => {
-    const provider = new SearchIndexProvider(new MockFS({}), indexFile({ create: false }));
+    const provider = new SearchIndexProvider(new MockFS({}), indexFile({ create: false }), "/");
     const results = provider.search("anything");
     assert.deepEqual(results, []);
     provider.dispose();
@@ -33,6 +33,7 @@ describe("SearchIndexProvider", () => {
     const provider = new SearchIndexProvider(
       new MockFS({}),
       indexFile({ create: true, content: "some [ inval }} id json" }),
+      "/",
     );
     const results = provider.search("anything");
     assert.deepEqual(results, []);
@@ -41,7 +42,7 @@ describe("SearchIndexProvider", () => {
 
   it("adds a file via watcher and makes it searchable", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
     await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
@@ -51,7 +52,7 @@ describe("SearchIndexProvider", () => {
 
   it("updates a file via watcher and reflects in search", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
     await new Promise(r => setTimeout(r, 10));
     fs.files["foo.txt"].content = "updated content";
@@ -64,7 +65,7 @@ describe("SearchIndexProvider", () => {
 
   it("removes a file via watcher and it disappears from search", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
     await new Promise(r => setTimeout(r, 10));
     fs.files = {}; // Remove all files
@@ -80,7 +81,7 @@ describe("SearchIndexProvider", () => {
       "foo.txt": { content: "hello world" },
       "bar.txt": { content: "another test" },
     });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     await provider.reset();
     const results = provider.search("hello");
     assert.ok(results.some(r => r.path === "foo.txt"));
@@ -92,14 +93,14 @@ describe("SearchIndexProvider", () => {
       "foo.txt": { content: "hello world" },
       "bar.txt": { content: "another test" },
     });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     await provider.reset();
     assert.equal(provider.size(), 2);
     provider.dispose();
   });
 
   it("save does not throw if nothing changed", async () => {
-    const provider = new SearchIndexProvider(new MockFS({}), indexFile());
+    const provider = new SearchIndexProvider(new MockFS({}), indexFile(), "/");
     assert.doesNotThrow(() => provider.save());
     provider.dispose();
   });
@@ -109,7 +110,7 @@ describe("SearchIndexProvider", () => {
       "foo.txt": { content: "hello world" },
       "bar.txt": { content: "another test" },
     });
-    const provider = new SearchIndexProvider(fs, indexFile());
+    const provider = new SearchIndexProvider(fs, indexFile(), "/");
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
     fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("bar.txt") });
     await new Promise(r => setTimeout(r, 10));

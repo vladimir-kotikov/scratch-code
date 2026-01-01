@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Document/notepad shape -->
+  <rect x="3.2" y="2" width="17.6" height="20" rx="1" fill="none" stroke="#C5C5C5" stroke-width="1.5"/>
+
+  <!-- Text lines -->
+  <line x1="6.5" y1="6" x2="17.5" y2="6" stroke="#C5C5C5" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="6.5" y1="9" x2="15.3" y2="9" stroke="#C5C5C5" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Scratched out lines with zigzag -->
+  <line x1="6.5" y1="12" x2="14.2" y2="12" stroke="#C5C5C5" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  <polyline points="6.5,11.5 7.6,12.5 8.7,11.5 9.8,12.5 10.9,11.5 12,12.5 13.1,11.5 14.2,12.5"
+            stroke="#C5C5C5" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <line x1="6.5" y1="15" x2="16.4" y2="15" stroke="#C5C5C5" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+  <polyline points="6.5,14.5 7.6,15.5 8.7,14.5 9.8,15.5 10.9,14.5 12,15.5 13.1,14.5 14.2,15.5 15.3,14.5 16.4,15.5"
+            stroke="#C5C5C5" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

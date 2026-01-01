@@ -72,9 +72,15 @@
       },
       {
         "command": "scratches.openDirectory",
-        "title": "Open directory",
+        "title": "Open Directory",
         "category": "Scratches",
         "icon": "$(folder-opened)"
+      },
+      {
+        "command": "scratches.openDirectoryInTerminal",
+        "title": "Open Directory in Terminal",
+        "category": "Scratches",
+        "icon": "$(terminal)"
       },
       {
         "command": "scratches.toggleSort",
@@ -129,7 +135,8 @@
         {
           "id": "scratchesView",
           "name": "Scratches",
-          "contextualTitle": "Scratches"
+          "contextualTitle": "Scratches",
+          "icon": "resources/activity-bar.svg"
         }
       ]
     },
@@ -160,6 +167,11 @@
           "command": "scratches.openDirectory",
           "when": "view == scratchesView",
           "group": "menu@1"
+        },
+        {
+          "command": "scratches.openDirectoryInTerminal",
+          "when": "view == scratchesView",
+          "group": "menu@2"
         }
       ],
       "view/item/context": [
@@ -229,6 +241,7 @@
     "vscode-extension-tester": "^8.19.0"
   },
   "dependencies": {
+    "@vscode/ripgrep": "^1.17.0",
     "minisearch": "^7.2.0",
     "ts-pattern": "^5.9.0"
   },

@@ -1,17 +1,67 @@
+import * as child_process from "child_process";
 import MiniSearch, { Options as SearchOptions, SearchResult } from "minisearch";
+import { basename, dirname, resolve as resolvePath } from "node:path";
 import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
-import { FileChangeType, FileSystemProvider, FileType, Uri } from "vscode";
+import { FileChangeType, FileSystemProvider, FileType, QuickPickItemKind, Uri } from "vscode";
 import { DisposableContainer } from "../util/containers";
-import { flat, map } from "../util/fu";
+import { flat, map, pass } from "../util/fu";
 import { asPromise, waitPromises, whenError } from "../util/promises";
-import { isaDirectoryError, ScratchFileSystemProvider } from "./fs";
+import { MaybeAsync, PickerItem } from "../util/prompt";
+import { splitLines } from "../util/text";
+import { isaDirectoryError, ScratchFileSystemProvider, toScratchUri } from "./fs";
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const searchOptions: SearchOptions = {
   fields: ["path", "content"],
   storeFields: ["path", "content"],
 };
+
+export type RgMatchStartEvent = { type: "begin"; data: { path: { text: string } } };
+export type RgMatchEvent = {
+  type: "match";
+  data: {
+    path: { text: string };
+    lines: { text: string };
+    line_number: number;
+    absolute_offset: number;
+    submatches: { match: { text: string }; start: number; end: number }[];
+  };
+};
+type RgMatchEndEvent = {
+  type: "end";
+  data: {
+    path: { text: string };
+    binary_offset: null;
+    stats: {
+      elapsed: { secs: number; nanos: number; human: string };
+      searches: number;
+      searches_with_match: number;
+      bytes_searched: number;
+      bytes_printed: number;
+      matched_lines: number;
+      matches: number;
+    };
+  };
+};
+
+type RgSummaryEvent = {
+  type: "summary";
+  data: {
+    elapsed_total: { human: string; nanos: number; secs: number };
+    stats: {
+      bytes_printed: number;
+      bytes_searched: number;
+      elapsed: { human: string; nanos: number; secs: number };
+      matched_lines: number;
+      matches: number;
+      searches: number;
+      searches_with_match: number;
+    };
+  };
+};
+
+type RgEvent = RgMatchStartEvent | RgMatchEvent | RgMatchEndEvent | RgSummaryEvent;
 
 export type SearchDoc = {
   id: string;
@@ -58,6 +108,7 @@ export class SearchIndexProvider extends DisposableContainer {
   constructor(
     private readonly fs: FileSystemProvider,
     private readonly indexFile: Uri,
+    private readonly rootPath: string,
   ) {
     super();
     this.load();
@@ -137,4 +188,68 @@ export class SearchIndexProvider extends DisposableContainer {
   };
 
   size = () => this.index.documentCount;
+
+  rgsearch = (query: string): MaybeAsync<Array<PickerItem<{ uri: Uri }>>> => {
+    const rgPath = resolvePath(
+      __dirname,
+      `../node_modules/@vscode/ripgrep/bin/rg${process.platform === "win32" ? ".exe" : ""}`,
+    );
+    const args = [
+      "-i", // case insensitive
+      "-F", // fixed strings (not regex)
+      "--crlf", // handle CRLF line endings
+      "--json",
+      query,
+      this.rootPath,
+    ];
+    const { promise, resolve, reject } = Promise.withResolvers<Array<PickerItem<{ uri: Uri }>>>();
+
+    child_process.execFile(rgPath, args, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout) => {
+      if (error) {
+        return reject(error);
+      }
+
+      resolve(
+        splitLines(stdout)
+          .map(line => {
+            try {
+              const event = JSON.parse(line) as RgEvent;
+              return match(event)
+                .returnType<PickerItem<{ uri: Uri }>>()
+                .with({ type: "begin", data: P.select() }, ({ path }) => {
+                  const uri = toScratchUri(Uri.file(path.text), Uri.file(this.rootPath));
+                  return {
+                    label: basename(uri.path),
+                    description: dirname(uri.path),
+                    alwaysShow: true,
+                    uri,
+                  };
+                })
+                .with({ type: "match", data: P.select() }, ({ lines, path, line_number }) => {
+                  const uri = toScratchUri(Uri.file(path.text), Uri.file(this.rootPath));
+                  return {
+                    label: lines.text.trim(),
+                    description: `Line ${line_number}`,
+                    alwaysShow: true,
+                    uri,
+                  };
+                })
+                .with({ type: "end" }, () => ({
+                  label: "",
+                  uri: Uri.parse(""),
+                  kind: QuickPickItemKind.Separator as const,
+                  alwaysShow: true,
+                }))
+                .with({ type: "summary" }, pass())
+                .exhaustive();
+            } catch {
+              return;
+            }
+          })
+          .filter(item => item !== undefined),
+      );
+    });
+
+    return promise;
+  };
 }

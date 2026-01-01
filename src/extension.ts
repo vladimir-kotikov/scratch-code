@@ -18,7 +18,7 @@ import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
 import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled } from "./util/prompt";
+import { isUserCancelled, MaybeAsync, PickerItemButton } from "./util/prompt";
 import { splitLines } from "./util/text";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
@@ -65,6 +65,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     private readonly scratchDir: Uri,
     private readonly storageDir: vscode.Uri,
     private readonly globalState: vscode.Memento,
+    private readonly context: vscode.ExtensionContext,
   ) {
     super();
 
@@ -103,6 +104,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       new SearchIndexProvider(
         this.fileSystemProvider,
         Uri.joinPath(this.storageDir, "searchIndex.json"),
+        this.scratchDir.fsPath,
       ),
     );
 
@@ -124,7 +126,9 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       })),
     );
 
-  private getQuickSearchItems = (value: string = ""): Array<prompt.PickerItem<{ uri: Uri }>> =>
+  private getQuickSearchItems = (
+    value: string = "",
+  ): MaybeAsync<Array<prompt.PickerItem<{ uri: Uri }>>> =>
     value === ""
       ? [
           {
@@ -135,13 +139,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
             onPick: () => undefined,
           },
         ]
-      : this.index.search(value).map(result => ({
-          label: result.path,
-          detail: result.textMatch,
-          iconPath: vscode.ThemeIcon.File,
-          alwaysShow: true,
-          uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
-        }));
+      : this.index.rgsearch(value);
 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
@@ -383,7 +381,20 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     this.globalState.update("sortOrder", order);
   };
 
-  openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
+  openDirectory = (location: "terminal" | "os" = "os") => {
+    return location === "terminal"
+      ? vscode.window
+          .createTerminal({
+            cwd: this.scratchDir.fsPath,
+            name: "Scratches Directory",
+            iconPath: {
+              dark: Uri.file(this.context.asAbsolutePath("resources/activity-bar-dark.svg")),
+              light: Uri.file(this.context.asAbsolutePath("resources/activity-bar.svg")),
+            },
+          })
+          .show()
+      : vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
+  };
 
   pinScratch = async (scratch?: Scratch | Uri) =>
     this.treeDataProvider.pinScratch(

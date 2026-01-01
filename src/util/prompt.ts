@@ -3,7 +3,7 @@ import { InputBoxOptions, QuickInputButton, QuickPickItem } from "vscode";
 import { DisposableContainer } from "./containers";
 import { asPromise } from "./promises";
 
-type MaybeAsync<T> = T | PromiseLike<T>;
+export type MaybeAsync<T> = T | PromiseLike<T>;
 
 const isEmpty = (str: string) => str.trim().length === 0;
 
@@ -129,10 +129,24 @@ export const pick = <T extends Record<string, unknown>>(
 
   const setItems = (itemsFn: ProvidePickerItemsFn<T>) => {
     picker.busy = true;
-    asPromise(itemsFn()).then(items => {
-      picker.items = items;
-      picker.busy = false;
-    });
+    asPromise(itemsFn()).then(
+      items => {
+        picker.items = items;
+        picker.busy = false;
+      },
+      err => {
+        picker.items = [
+          {
+            label: "Error loading items",
+            detail: String(err),
+            iconPath: new vscode.ThemeIcon("error"),
+            alwaysShow: true,
+            onPick: () => undefined,
+          } as PickerItem<never>,
+        ];
+        picker.busy = false;
+      },
+    );
   };
 
   const { promise, reject, resolve } = Promise.withResolvers<PickerItem<T>>();

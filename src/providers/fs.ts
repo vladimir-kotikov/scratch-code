@@ -41,6 +41,14 @@ export const isNotEmptyDirectory = (err: unknown): boolean => {
 const isFile = (stat: FileStat): boolean =>
   stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
 
+export const toScratchUri = (uri: Uri, scratchesRoot: Uri): Uri => {
+  const relativePath = path.relative(scratchesRoot.fsPath, uri.fsPath);
+  if (relativePath.startsWith("..")) {
+    throw new Error(`URI is outside of scratch directory: ${uri.toString()}`);
+  }
+  return Uri.joinPath(ScratchFileSystemProvider.ROOT, relativePath);
+};
+
 export class ScratchFileSystemProvider implements FileSystemProvider, Disposable {
   static readonly SCHEME = "scratch";
   static readonly ROOT = Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/`);
@@ -59,14 +67,6 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
       throw new Error(`Invalid URI scheme: ${uri.scheme}`);
     }
     return Uri.joinPath(this.scratchDir, uri.path);
-  };
-
-  private toScratchUri = (uri: Uri): Uri => {
-    const relativePath = path.relative(this.scratchDir.fsPath, uri.fsPath);
-    if (relativePath.startsWith("..")) {
-      throw new Error(`URI is outside of scratch directory: ${uri.toString()}`);
-    }
-    return Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/${relativePath}`);
   };
 
   watch = (

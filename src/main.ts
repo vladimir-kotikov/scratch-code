@@ -26,7 +26,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const extension = new ScratchExtension(scratchDir, context.globalStorageUri, context.globalState);
+  const extension = new ScratchExtension(
+    scratchDir,
+    context.globalStorageUri,
+    context.globalState,
+    context,
+  );
 
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
@@ -37,7 +42,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.search.quickSearch", () => extension.quickPick("?")),
     vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),
     vscode.commands.registerCommand("scratches.renameScratch", extension.rename),
-    vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
+    vscode.commands.registerCommand("scratches.openDirectory", () => extension.openDirectory("os")),
+    vscode.commands.registerCommand("scratches.openDirectoryInTerminal", () =>
+      extension.openDirectory("terminal"),
+    ),
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     vscode.commands.registerCommand("scratches.pin", extension.pinScratch),
     vscode.commands.registerCommand("scratches.unpin", extension.unpinScratch),

@@ -94,7 +94,7 @@ describe("SearchIndexProvider", () => {
     });
     const provider = new SearchIndexProvider(fs, indexFile());
     await provider.reset();
-    assert.equal(provider.size(), 2);
+    assert.equal(provider.documentCount(), 2);
     provider.dispose();
   });
 

@@ -136,5 +136,6 @@ export class SearchIndexProvider extends DisposableContainer {
       .then(this.save);
   };
 
-  size = () => this.index.documentCount;
+  documentCount = () => this.index.documentCount;
+  size = () => JSON.stringify(this.index).length;
 }

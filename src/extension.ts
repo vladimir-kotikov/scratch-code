@@ -34,6 +34,50 @@ const currentScratchUri = () =>
 // - delay updating the index in watcher events until the index is loaded/populated
 // - check the index validity when loading from disk and prune missing entries
 
+enum IndexStatus {
+  Unknown = "Unknown",
+  Loading = "Loading...",
+  Ready = "Ready",
+  Error = "Error",
+}
+
+class IndexStatusBar {
+  private statusItem: vscode.StatusBarItem;
+  private status: IndexStatus = IndexStatus.Unknown;
+  private error?: string;
+  private size?: number;
+
+  constructor(private indexPath: string) {
+    this.statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    this.update();
+    this.statusItem.show();
+  }
+
+  setStatus = (status: IndexStatus.Loading | IndexStatus.Ready | IndexStatus.Unknown) => {
+    this.status = status;
+    this.error = undefined;
+    return this.update();
+  };
+
+  setError = (error: string) => {
+    this.status = IndexStatus.Error;
+    this.error = error;
+    return this.update();
+  };
+
+  setSize = (size: number) => {
+    this.size = size;
+    return this.update();
+  };
+
+  private update = () => {
+    const indexSize = this.size !== undefined ? (this.size / 1024).toFixed(1) + " Kb" : "-";
+    this.statusItem.tooltip = `Location: ${this.indexPath}${this.error ? "\nError: " + this.error : ""}`;
+    this.statusItem.text = `Index: ${this.status}, Size: ${indexSize}`;
+    return this;
+  };
+}
+
 export class ScratchExtension extends DisposableContainer {
   private readonly index: SearchIndexProvider;
   private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
@@ -57,6 +101,7 @@ export class ScratchExtension extends DisposableContainer {
       setItems(this.getQuickPickItems);
     },
   };
+  private indexStatusBar: IndexStatusBar;
 
   constructor(
     private readonly fileSystemProvider: ScratchFileSystemProvider,
@@ -67,6 +112,8 @@ export class ScratchExtension extends DisposableContainer {
     super();
 
     [storageDir].forEach(vscode.workspace.fs.createDirectory);
+
+    this.indexStatusBar = new IndexStatusBar(this.fileSystemProvider.scratchDir.fsPath);
 
     this.disposeLater(
       // start watcher so other components can rely on it being active
@@ -95,10 +142,15 @@ export class ScratchExtension extends DisposableContainer {
         Uri.joinPath(this.storageDir, "searchIndex.json"),
       ),
     );
-
+    this.index.load();
     this.disposables.push(
+      this.index.onDidLoad(() => {
+        this.indexStatusBar.setStatus(IndexStatus.Ready).setSize(this.index.size());
+        prompt.info(`Index ready, ${this.index.documentCount()} documents in index`);
+      }),
       this.index.onLoadError(err => {
         this.index.reset();
+        this.indexStatusBar.setError(err.toString());
         prompt.warn(`Index corrupted (${err}). Rebuilding...`);
       }),
     );
@@ -313,10 +365,15 @@ export class ScratchExtension extends DisposableContainer {
       )
       .then(item => editor.openDocument(item.uri), whenError(isUserCancelled, pass()));
 
-  resetIndex = async () =>
-    this.index
-      .reset()
-      .then(() => prompt.info("Scratches: search index rebuilt, documents: " + this.index.size()));
+  resetIndex = async () => {
+    this.indexStatusBar.setStatus(IndexStatus.Loading).setSize(0);
+    return this.index.reset().then(() => {
+      this.indexStatusBar.setStatus(IndexStatus.Ready).setSize(this.index.size());
+      return prompt.info(
+        "Scratches: search index rebuilt, documents: " + this.index.documentCount(),
+      );
+    });
+  };
 
   rename = async (scratch?: Scratch | Uri, to?: Uri) => {
     const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? currentScratchUri();

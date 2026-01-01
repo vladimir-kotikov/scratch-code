@@ -106,6 +106,94 @@
         }
       }
     ],
+    "languageModelTools": [
+      {
+        "name": "listScratches",
+        "displayName": "List Scratches",
+        "icon": "${list}",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "listScratches",
+        "userDescription": "Lists available scratches",
+        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered by a glob pattern.\nUse when user asks to see available scratches or find files by pattern.\n\nParameters:\n- filter (optional): Glob pattern (e.g., \"**/*.ts\" for TypeScript, \"**/notes/**\" for directory)\n\nExamples:\n- {} → \"scratch:///notes.md\\nscratch:///todo.txt\"\n- { filter: \"**/*.ts\" } → \"scratch:///code/example.ts\"\n\nReturns: Newline-separated URIs or \"No scratches found.\"",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "string",
+              "description": "Filter to use when listing scratches. Can be a glob pattern or a directory path. If omitted, all scratches are listed. Only use if a specific directory or set of directories is needed, otherwise prefer leaving it empty and getting a full list instead.",
+              "default": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "readScratch",
+        "displayName": "Read Scratch",
+        "icon": "$(file-text)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "readScratch",
+        "userDescription": "Reads content from a scratch file",
+        "modelDescription": "Reads the content of a scratch file, optionally reading a specific line range.\nUse when user asks to view or retrieve scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- lineFrom (optional): Starting line number (0-based, inclusive)\n- lineTo (optional): Ending line number (0-based, exclusive)\n\nExamples:\n- { uri: \"scratch:///notes.md\" } → full file content\n- { uri: \"scratch:///code.ts\", lineFrom: 10, lineTo: 20 } → lines 10-19\n\nReturns: File content as string.",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The scratch URI to read from. Must be a valid scratch:// URI or URI string."
+            },
+            "lineFrom": {
+              "type": "number",
+              "description": "Optional starting line number (0-based, inclusive). If omitted, reads from the beginning."
+            },
+            "lineTo": {
+              "type": "number",
+              "description": "Optional ending line number (0-based, exclusive). If omitted, reads to the end."
+            }
+          },
+          "required": [
+            "uri"
+          ]
+        }
+      },
+      {
+        "name": "writeScratch",
+        "displayName": "Write Scratch",
+        "icon": "$(save)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "writeScratch",
+        "userDescription": "Writes content to a scratch file",
+        "modelDescription": "Writes content to a scratch file, creating it if it doesn't exist or overwriting if it does.\nUse when user asks to save, create, or update scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- content (required): Content to write to the file\n\nExamples:\n- { uri: \"scratch:///notes.md\", content: \"My notes\" } → creates/overwrites file\n- { uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratch written successfully.\"",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The scratch URI to write to. Must be a valid scratch:// URI or URI string. Parent directories will be created if needed."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file. Will overwrite existing content if file exists."
+            }
+          },
+          "required": [
+            "uri",
+            "content"
+          ]
+        }
+      }
+    ],
     "configuration": {
       "title": "Scratches",
       "properties": {
@@ -229,6 +317,7 @@
     "vscode-extension-tester": "^8.19.0"
   },
   "dependencies": {
+    "minimatch": "^10.1.1",
     "minisearch": "^7.2.0",
     "ts-pattern": "^5.9.0"
   },

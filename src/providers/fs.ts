@@ -48,7 +48,9 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
   readonly onDidChangeFile = this._onDidChangeFile.event;
 
-  constructor(private readonly scratchDir: Uri) {}
+  constructor(readonly scratchDir: Uri) {
+    fs.mkdirSync(scratchDir.fsPath, { recursive: true });
+  }
 
   dispose = () => {
     this._onDidChangeFile.dispose();

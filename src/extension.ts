@@ -2,7 +2,7 @@ import * as path from "path";
 import { basename } from "path";
 import { match } from "ts-pattern";
 import * as vscode from "vscode";
-import { Disposable, Uri } from "vscode";
+import { Uri } from "vscode";
 import { newScratchPicker } from "./newScratch";
 import { isFileExistsError, isNotEmptyDirectory, ScratchFileSystemProvider } from "./providers/fs";
 import { SearchIndexProvider } from "./providers/search";
@@ -10,7 +10,6 @@ import {
   Scratch,
   ScratchFolder,
   ScratchTreeProvider,
-  SortOrder,
   SortOrderLength,
 } from "./providers/tree";
 import { DisposableContainer } from "./util/containers";
@@ -35,9 +34,7 @@ const currentScratchUri = () =>
 // - delay updating the index in watcher events until the index is loaded/populated
 // - check the index validity when loading from disk and prune missing entries
 
-export class ScratchExtension extends DisposableContainer implements Disposable {
-  readonly fileSystemProvider: ScratchFileSystemProvider;
-  readonly treeDataProvider: ScratchTreeProvider;
+export class ScratchExtension extends DisposableContainer {
   private readonly index: SearchIndexProvider;
   private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
 
@@ -62,27 +59,20 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   constructor(
-    private readonly scratchDir: Uri,
+    private readonly fileSystemProvider: ScratchFileSystemProvider,
+    private readonly treeDataProvider: ScratchTreeProvider,
     private readonly storageDir: vscode.Uri,
     private readonly globalState: vscode.Memento,
   ) {
     super();
 
-    [scratchDir, storageDir].forEach(vscode.workspace.fs.createDirectory);
+    [storageDir].forEach(vscode.workspace.fs.createDirectory);
 
-    this.fileSystemProvider = this.disposeLater(new ScratchFileSystemProvider(this.scratchDir));
     this.disposeLater(
       // start watcher so other components can rely on it being active
       this.fileSystemProvider.watch(ScratchFileSystemProvider.ROOT, {
         recursive: true,
       }),
-    );
-
-    this.treeDataProvider = this.disposeLater(
-      new ScratchTreeProvider(
-        this.fileSystemProvider,
-        this.globalState.get("sortOrder", SortOrder.MostRecent),
-      ),
     );
 
     this.scratchesDragAndDropController = {
@@ -383,7 +373,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     this.globalState.update("sortOrder", order);
   };
 
-  openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
+  openDirectory = () =>
+    vscode.commands.executeCommand("revealFileInOS", this.fileSystemProvider.scratchDir);
 
   pinScratch = async (scratch?: Scratch | Uri) =>
     this.treeDataProvider.pinScratch(

@@ -2,6 +2,9 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { ScratchExtension } from "./extension";
+import { ScratchFileSystemProvider } from "./providers/fs";
+import { registerTool, ScratchLmToolkit } from "./providers/lm";
+import { ScratchTreeProvider, SortOrder } from "./providers/tree";
 
 const scratchUriScheme = "scratch";
 
@@ -26,10 +29,23 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const extension = new ScratchExtension(scratchDir, context.globalStorageUri, context.globalState);
+  const fileSystemProvider = new ScratchFileSystemProvider(scratchDir);
+  const treeDataProvider = new ScratchTreeProvider(
+    fileSystemProvider,
+    context.globalState.get("sortOrder", SortOrder.MostRecent),
+  );
+
+  const extension = new ScratchExtension(
+    fileSystemProvider,
+    treeDataProvider,
+    context.globalStorageUri,
+    context.globalState,
+  );
+
+  const lmToolset = new ScratchLmToolkit(fileSystemProvider, treeDataProvider);
 
   context.subscriptions.push(
-    vscode.workspace.registerFileSystemProvider(scratchUriScheme, extension.fileSystemProvider),
+    vscode.workspace.registerFileSystemProvider(scratchUriScheme, fileSystemProvider),
     vscode.commands.registerCommand("scratches.newScratch", extension.newScratch),
     vscode.commands.registerCommand("scratches.newFolder", extension.newFolder),
     vscode.commands.registerCommand("scratches.delete", extension.delete),
@@ -41,7 +57,11 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     vscode.commands.registerCommand("scratches.pin", extension.pinScratch),
     vscode.commands.registerCommand("scratches.unpin", extension.unpinScratch),
+    registerTool("listScratches", lmToolset.listScratches),
+    registerTool("readScratch", lmToolset.readScratch),
+    registerTool("writeScratch", lmToolset.writeScratch),
     extension,
+    treeDataProvider,
   );
 }
 

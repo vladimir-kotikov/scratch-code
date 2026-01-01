@@ -1,58 +1,45 @@
+import assert from "node:assert";
 import { basename } from "node:path";
-import { match } from "ts-pattern";
 import {
+  Disposable,
   EventEmitter,
-  FileStat,
+  FileChangeType,
   FileType,
-  QuickPickItem,
+  ProviderResult,
   ThemeIcon,
   TreeDataProvider,
   TreeItem,
   TreeItemCollapsibleState,
   Uri,
 } from "vscode";
-import { DisposableContainer } from "../util/disposable";
-import { filter, flat, item, map, pipe, sort, zip } from "../util/fu";
+import { concat, map, reduce, sort, zip } from "../util/fu";
 import { asPromise } from "../util/promises";
-import { ScratchFileSystemProvider } from "./fs";
-import { PinStore } from "./pinStore";
+import { trim } from "../util/string";
+import { ExtFileChangeEvent, ScratchFileSystemProvider } from "./fs";
 
-type FileTuple = [Uri, FileStat];
-
-const IGNORED_FILES = new Set([".DS_Store", ".pinstore"]);
-
-const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.File;
-
-const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
-
-export type ScratchQuickPickItem = QuickPickItem & { scratch: Scratch };
-export type ScratchTreeNode = Scratch | ScratchFolder;
-
-export class ScratchFolder {
-  constructor(public readonly uri: Uri) {}
-
-  static from(uri: Uri): ScratchFolder {
-    return new ScratchFolder(uri);
-  }
-
-  toTreeItem(): TreeItem {
-    return {
-      label: basename(this.uri.path),
-      resourceUri: this.uri,
-      collapsibleState: TreeItemCollapsibleState.Collapsed,
-      iconPath: ThemeIcon.Folder,
-      contextValue: "folder",
-    };
-  }
+export enum SortOrder {
+  MostRecent,
+  Alphabetical,
 }
 
-export class Scratch {
-  constructor(
-    public readonly uri: Uri,
-    public isPinned?: boolean,
+export const SortOrderLength = Object.keys(SortOrder).length / 2;
+
+abstract class ScratchBase {
+  protected constructor(
+    readonly uri: Uri,
+    readonly parent: ScratchFolder | null,
   ) {}
 
-  static from = (uri: Uri, isPinned: boolean): Scratch => new Scratch(uri, isPinned);
+  abstract isOfType(type: FileType): boolean;
+
+  abstract toTreeItem(): TreeItem;
+}
+
+export class ScratchFile extends ScratchBase {
+  isPinned: boolean = false;
+  mtime: number = 0;
+
+  isOfType = (type: FileType): this is ScratchFile => type === FileType.File;
 
   toTreeItem = (): TreeItem => ({
     label: basename(this.uri.path),
@@ -62,153 +49,193 @@ export class Scratch {
       title: "Open",
       arguments: [this.uri],
     },
-    contextValue: this.isPinned ? "pinned" : "scratch",
     collapsibleState: TreeItemCollapsibleState.None,
-    iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
-  });
-
-  toQuickPickItem = (): ScratchQuickPickItem => ({
-    label: basename(this.uri.path),
-    description: this.uri.path.substring(1),
-    iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
-    scratch: this,
+    iconPath: ThemeIcon.File,
+    contextValue: this.isPinned ? "pinned" : "scratch",
+    description: this.isPinned ? "pinned" : undefined,
   });
 }
 
-export enum SortOrder {
-  MostRecent,
-  Alphabetical,
-}
+export class ScratchFolder extends ScratchBase {
+  static ROOT = new ScratchFolder(Uri.parse("scratch:/"), null);
 
-export const SortOrderLength = Object.keys(SortOrder).length / 2;
+  // undefined for not-yet-loaded folders
+  private _children?: Map<string, ScratchNode>;
 
-export class ScratchTreeProvider
-  extends DisposableContainer
-  implements TreeDataProvider<ScratchTreeNode>
-{
-  private _onDidChangeTreeData = new EventEmitter<
-    ScratchTreeNode | ScratchTreeNode[] | undefined
-  >();
-  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-  private reload = (nodes?: ScratchTreeNode | ScratchTreeNode[]) =>
-    this._onDidChangeTreeData.fire(nodes);
-
-  private pinStore: PinStore;
-
-  constructor(
-    private readonly fileSystem: ScratchFileSystemProvider,
-    private _sortOrder = SortOrder.MostRecent,
-  ) {
-    super();
-    this.pinStore = new PinStore(
-      Uri.joinPath(ScratchFileSystemProvider.ROOT, ".pinstore"),
-      this.fileSystem,
-    );
-
-    this.disposeLater(
-      this.fileSystem.onDidChangeFile(() =>
-        // TODO: Instead of partial reload, just reload everything for now.
-        // This is suboptimal but at least works and allows to avoid internal
-        // state, caching issues, etc.
-        // The reason partial reload didn't work is that VSCode maintains
-        // its own cache of tree items in a map with the object (i.e scratch)
-        // as a key so in order to reload correctly it's required to pass the
-        // very same object instance, which means maintaining internal state,
-        // which I really want to avoid, at least for now.
-        this.reload(),
-      ),
-    );
-    this.disposeLater(this.pinStore.onDidLoad(() => this.reload()));
+  get children(): ScratchNode[] | undefined {
+    return this._children ? Array.from(this._children.values()) : undefined;
   }
 
-  // Just like an filesystem provider's readDirectory,
-  // but returns [uri, stat] rather than [name, type] results
-  private readDirectory = (dir: Uri) =>
-    asPromise(this.fileSystem.readDirectory(dir))
-      .then(map(item(0)))
-      .then(map(name => Uri.joinPath(dir, name)))
-      .then(uris => Promise.all(uris.map(this.fileSystem.stat)).then(zip(uris)));
+  /**
+   * Adds a child node to this folder.
+   * @param type The type of the child node to add.
+   * @param name The name or path of the child node to add, can be a
+   * /-delimited path to create, in which case the intermediate folders are
+   * created as needed. The leading and trailing slashes are trimmed.
+   * @returns the created node
+   */
+  addChild = <T extends FileType>(
+    name: string,
+    type: T,
+  ): T extends FileType.Directory ? ScratchFolder : ScratchFile => {
+    this._children = this._children ?? new Map();
+    // rest is either undefined or non-empty here due to trim
+    const [childName, rest] = trim(name, "/").split("/", 1);
+    if (rest) {
+      return this.addChild(childName, FileType.Directory).addChild(rest, type);
+    }
 
-  private readTree = (parent: Uri = ScratchFileSystemProvider.ROOT): PromiseLike<FileTuple[]> =>
-    this.readDirectory(parent)
-      .then(
-        map(([uri, stat]) =>
-          match(stat.type)
-            .returnType<FileTuple[] | PromiseLike<FileTuple[]>>()
-            .with(FileType.Unknown, () => [])
-            .with(FileType.Directory, async () => this.readTree(uri))
-            .when(isFile, () => [[uri, stat]])
-            .otherwise(() => []),
-        ),
-      )
-      .then(ps => Promise.all(ps))
-      .then(flat);
+    let child = this._children.get(childName);
+    if (child && !child.isOfType(type)) {
+      throw new Error(
+        `Cannot add child "${name}": a node with the same name but different type already exists`,
+      );
+    }
 
-  private sortAndFilter = (sortOrder: SortOrder) =>
-    pipe(
-      filter<FileTuple>(([uri]) => !IGNORED_FILES.has(basename(uri.path))),
-      sort<FileTuple>(
-        // Order of comparators matters: LEFTMOST has highest precedence.
-        // 1) Group: folders before files (mask out SymbolicLink bit)
-        sort.byBoolValue(([, { type }]) => isDir(type)),
-        // 2) Within folders: always alphabetical, independent of tree sort order
-        sort.group(
-          ([, { type }]) => isDir(type),
-          sort.byStringValue(([uri]) => uri.path),
-        ),
-        // 3) Within files: pinned first, then by sort order
-        sort.group(
-          ([, { type }]) => isFile(type),
-          sort.byBoolValue(([uri]) => this.pinStore.isPinned(uri)),
-          sortOrder === SortOrder.MostRecent
-            ? sort.desc(sort.byNumericValue(([, { mtime }]) => mtime))
-            : sort.byStringValue(([uri]) => uri.path),
-        ),
-      ),
-      map<FileTuple, ScratchTreeNode>(([uri, { type }]) =>
+    if (!child) {
+      child =
         type === FileType.Directory
-          ? ScratchFolder.from(uri)
-          : Scratch.from(uri, this.pinStore.isPinned(uri)),
+          ? new ScratchFolder(Uri.joinPath(this.uri, childName), this)
+          : new ScratchFile(Uri.joinPath(this.uri, childName), this);
+
+      this._children.set(childName, child);
+    }
+
+    return child as T extends FileType.Directory ? ScratchFolder : ScratchFile;
+  };
+
+  /**
+   * Removes a child node.
+   * @param name The name of a node to remove, or a /-delimited path to a nested node.
+   * @returns The parent node of the removed node, or undefined if not found.
+   */
+  removeChild = (name: string): ScratchNode | undefined => {
+    const [childName, rest] = trim(name, "/").split("/", 1);
+    const child = this._children?.get(childName);
+    if (!child) {
+      return undefined;
+    }
+
+    if (!rest) {
+      this._children?.delete(childName);
+      return this;
+    }
+
+    if (child.isOfType(FileType.File)) {
+      throw new Error(
+        `Cannot remove child "${name}": path segment "${childName}" is a file, cannot continue to "${rest}"`,
+      );
+    }
+
+    return (child as ScratchFolder).removeChild(rest);
+  };
+
+  isOfType = (type: FileType): boolean => type === FileType.Directory;
+
+  toTreeItem = (): TreeItem => ({
+    label: basename(this.uri.path).substring(1),
+    resourceUri: this.uri,
+    collapsibleState: TreeItemCollapsibleState.Collapsed,
+    iconPath: ThemeIcon.Folder,
+    contextValue: "folder",
+  });
+}
+
+export type ScratchNode = ScratchFolder | ScratchFile;
+
+export class ScratchTreeProvider implements TreeDataProvider<ScratchNode>, Disposable {
+  private pinStore: { isPinned: (uri: Uri | string) => boolean };
+  private readonly changeTreeDataEvent = new EventEmitter<
+    void | ScratchNode | ScratchNode[] | null
+  >();
+
+  readonly onDidChangeTreeData = this.changeTreeDataEvent.event;
+
+  constructor(private fs: ScratchFileSystemProvider) {
+    this.fs.onDidChangeFile(this.handleFileChangeEvents);
+    // FIXME: Fake pin store to avoid falling into the rabbit hole of refactoring
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    this.pinStore = { isPinned: (_uri: Uri | string) => false };
+  }
+
+  private handleFileChangeEvents = (events: readonly ExtFileChangeEvent[]) =>
+    this.changeTreeDataEvent.fire(
+      events
+        .map(({ type, uri, stat }) => {
+          if (type === FileChangeType.Deleted) return ScratchFolder.ROOT.removeChild(uri.path);
+
+          const child = ScratchFolder.ROOT.addChild(uri.path, stat!.type);
+          if (child instanceof ScratchFile) {
+            child.mtime = stat!.mtime;
+            child.isPinned = this.pinStore.isPinned(uri);
+          }
+
+          return child;
+        })
+        .filter(node => !!node),
+    );
+
+  dispose = () => this.changeTreeDataEvent.dispose();
+
+  getChildren = (
+    element: ScratchNode = ScratchFolder.ROOT,
+  ): ScratchNode[] | Promise<ScratchNode[]> => {
+    assert.ok(element instanceof ScratchFolder, "getChildren called on a file node");
+
+    return (
+      element.children ??
+      asPromise(this.fs.readDirectory(element.uri))
+        .then(children =>
+          Promise.all(children.map(([name]) => this.fs.stat(Uri.joinPath(element.uri, name))))
+            .then(zip(children))
+            .then(
+              map(([[name], stat]) => {
+                const child = ScratchFolder.ROOT.addChild(name, stat.type);
+                if (child instanceof ScratchFile) {
+                  child.mtime = stat.mtime;
+                  child.isPinned = this.pinStore.isPinned(child.uri.path);
+                }
+                return child;
+              }),
+            ),
+        )
+        .then(
+          sort(
+            // TODO: proper filtering and sorting
+            // TODO: sorting by pinned status is not relevant with
+            // subfolders, need to find another way to display pinned items
+            sort.desc(sort.byBoolValue(node => node instanceof ScratchFolder)),
+            sort.desc(sort.byNumericValue(node => (node instanceof ScratchFile ? node.mtime : 0))),
+          ),
+        )
+    );
+  };
+
+  getTreeItem = (element: ScratchNode): TreeItem | Thenable<TreeItem> => element.toTreeItem();
+
+  getParent = (element: ScratchNode): ProviderResult<ScratchNode> => element.parent;
+
+  // Other public methods
+
+  /**
+   * Read all ScratchFile nodes in the tree. Uses getChildren internally,
+   * which caches the tree structure for performance, so subsequent calls
+   * are fast.
+   * @param parent The folder to read from, or the root folder by default.
+   * @returns A promise that resolves to an array of all ScratchFile nodes.
+   */
+  getAll = (parent?: ScratchFolder): Promise<ScratchFile[]> =>
+    asPromise(this.getChildren(parent ?? ScratchFolder.ROOT)).then(children =>
+      Promise.all(children.filter(child => child instanceof ScratchFolder).map(this.getAll)).then(
+        reduce(
+          concat,
+          children.filter(child => child instanceof ScratchFile),
+        ),
       ),
     );
 
-  getTreeItem = (element: ScratchTreeNode) => {
-    return element.toTreeItem();
-  };
-
-  getChildren = (element?: ScratchTreeNode, sortOrder: SortOrder = this._sortOrder) =>
-    this.readDirectory(element?.uri ?? ScratchFileSystemProvider.ROOT).then(
-      this.sortAndFilter(sortOrder),
-    );
-
-  getFlatTree = (sortOrder: SortOrder = this._sortOrder) =>
-    // Cast to Promise<Scratch[]> since readTree returns only FileTuples of files
-    this.readTree().then(this.sortAndFilter(sortOrder)) as Promise<Scratch[]>;
-
-  getItem = (uri?: Uri) => (uri ? new Scratch(uri, this.pinStore.isPinned(uri)) : undefined);
-
-  get sortOrder(): SortOrder {
-    return this._sortOrder;
-  }
-
-  setSortOrder = (order: SortOrder) => {
-    if (order !== this._sortOrder) {
-      this._sortOrder = order;
-      this.reload();
-    }
-  };
-
-  pinScratch = (scratch?: Scratch) => {
-    if (scratch) {
-      this.pinStore.pin(scratch.uri);
-      this.reload();
-    }
-  };
-
-  unpinScratch = (scratch?: Scratch) => {
-    if (scratch) {
-      this.pinStore.unpin(scratch.uri);
-      this.reload();
-    }
+  cycleSortOrder = (): SortOrder => {
+    // TODO: Placeholder implementation
+    return SortOrder.Alphabetical;
   };
 }

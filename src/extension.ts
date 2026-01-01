@@ -2,18 +2,12 @@ import * as path from "path";
 import { basename } from "path";
 import { match } from "ts-pattern";
 import * as vscode from "vscode";
-import { Disposable, Uri } from "vscode";
+import { Disposable, QuickPickItem, ThemeIcon, Uri } from "vscode";
 import { newScratchPicker } from "./newScratch";
 import { isFileExistsError, isNotEmptyDirectory, ScratchFileSystemProvider } from "./providers/fs";
+import { PinStore } from "./providers/pinStore";
 import { SearchIndexProvider } from "./providers/search";
-import {
-  Scratch,
-  ScratchFolder,
-  ScratchQuickPickItem,
-  ScratchTreeProvider,
-  SortOrder,
-  SortOrderLength,
-} from "./providers/tree";
+import { ScratchFile, ScratchFolder, ScratchNode, ScratchTreeProvider } from "./providers/tree";
 import { DisposableContainer } from "./util/disposable";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
@@ -22,6 +16,13 @@ import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItem, Separator } from "./util/prompt";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
+
+const toQuickPickItem = (scratch: ScratchFile): QuickPickItem & { scratch: ScratchFile } => ({
+  label: basename(scratch.uri.path),
+  description: scratch.uri.path.substring(1),
+  iconPath: ThemeIcon.File,
+  scratch,
+});
 
 const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
   str === undefined || str.trim() === "";
@@ -45,12 +46,13 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   readonly fileSystemProvider: ScratchFileSystemProvider;
   readonly treeDataProvider: ScratchTreeProvider;
   private readonly index: SearchIndexProvider;
-  private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
+  private readonly treeView: vscode.TreeView<ScratchNode>;
+  private readonly pinStore: PinStore;
 
-  public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
+  public scratchesDragAndDropController!: vscode.TreeDragAndDropController<ScratchFile>;
 
   private readonly pinQuickPickItemButton: prompt.PickerItemButton<
-    prompt.PickerItem<{ scratch: Scratch }>
+    prompt.PickerItem<{ scratch: ScratchFile }>
   > = {
     tooltip: "Pin scratch",
     iconPath: new vscode.ThemeIcon("pin"),
@@ -61,7 +63,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   private readonly unpinQuickPickItemButton: prompt.PickerItemButton<
-    prompt.PickerItem<{ scratch: Scratch }>
+    prompt.PickerItem<{ scratch: ScratchFile }>
   > = {
     tooltip: "Unpin scratch",
     iconPath: new vscode.ThemeIcon("pinned"),
@@ -91,7 +93,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     this.treeDataProvider = this.disposeLater(
       new ScratchTreeProvider(
         this.fileSystemProvider,
-        this.globalState.get("sortOrder", SortOrder.MostRecent),
+        // this.globalState.get("sortOrder", SortOrder.MostRecent),
       ),
     );
 
@@ -109,6 +111,11 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       }),
     );
 
+    this.pinStore = new PinStore(
+      Uri.joinPath(ScratchFileSystemProvider.ROOT, ".pinstore"),
+      this.fileSystemProvider,
+    );
+
     this.index = this.disposeLater(
       new SearchIndexProvider(
         this.fileSystemProvider,
@@ -124,18 +131,20 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
     );
   }
 
-  private getQuickPickItems = (): PromiseLike<(PickerItem<{ scratch: Scratch }> | Separator)[]> =>
+  private getQuickPickItems = (): PromiseLike<
+    (PickerItem<{ scratch: ScratchFile }> | Separator)[]
+  > =>
     this.treeDataProvider
-      .getFlatTree(this.treeDataProvider.sortOrder)
+      .getAll()
       .then(
         map(
           scratch =>
             ({
-              ...scratch.toQuickPickItem(),
+              ...toQuickPickItem(scratch),
               buttons: scratch.isPinned
                 ? [this.unpinQuickPickItemButton]
                 : [this.pinQuickPickItemButton],
-            }) as prompt.PickerItem<{ scratch: Scratch }> | Separator,
+            }) as prompt.PickerItem<{ scratch: ScratchFile }> | Separator,
         ),
       )
       .then(items => {
@@ -162,7 +171,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private handleDrag = ([scratch, ..._]: Scratch[], dataTransfer: vscode.DataTransfer) => {
+  private handleDrag = ([scratch, ..._]: ScratchNode[], dataTransfer: vscode.DataTransfer) => {
     // TODO: Dragging folders is not yet supported
     if (scratch instanceof ScratchFolder) return;
     dataTransfer.set("text/uri-list", new vscode.DataTransferItem(scratch.uri.toString()));
@@ -207,10 +216,8 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   // TODO: Test dropping plain text
-  private handleDrop = (
-    target: Scratch | ScratchFolder | undefined,
-    dataTransfer: vscode.DataTransfer,
-  ) => {
+  // TODO: Dropping on a folder
+  private handleDrop = (target: ScratchNode | undefined, dataTransfer: vscode.DataTransfer) => {
     const parent =
       target === undefined
         ? ScratchFileSystemProvider.ROOT
@@ -269,7 +276,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .readFile(uri)
       .then(content => this.createScratch(path.basename(uri.path), content, parent));
 
-  newScratch = (parent?: ScratchFolder | Scratch) =>
+  newScratch = (parent?: ScratchNode) =>
     // TODO: Reveal the created scratch in the tree view
     parent === undefined
       ? newScratchPicker(this.createScratch)
@@ -284,7 +291,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
             : Uri.joinPath(parent.uri, "../"),
         );
 
-  newFolder = (parent?: ScratchFolder | Scratch) => {
+  newFolder = (parent?: ScratchNode) => {
     const parentUri =
       parent === undefined
         ? ScratchFileSystemProvider.ROOT
@@ -308,7 +315,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
 
   quickOpen = () =>
     prompt
-      .pick<ScratchQuickPickItem>(this.getQuickPickItems, {
+      .pick<QuickPickItem>(this.getQuickPickItems, {
         matchOnDescription: true,
         matchOnDetail: true,
       })
@@ -338,7 +345,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .reset()
       .then(() => prompt.info("Scratches: search index rebuilt, documents: " + this.index.size()));
 
-  rename = async (scratch?: Scratch | Uri, to?: Uri) => {
+  rename = async (scratch?: ScratchNode | Uri, to?: Uri) => {
     const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? currentScratchUri();
     if (from === undefined) return;
 
@@ -364,7 +371,7 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
       .then(pass(), whenError(isUserCancelled, pass()));
   };
 
-  delete = (item?: Scratch | ScratchFolder | { uri: "${selectedItem}" }) => {
+  delete = (item?: ScratchNode | { uri: "${selectedItem}" }) => {
     // vscode doesn't pass the current item when invoked via keybinding,
     // so we pass a placeholder as defined in package.json and handle it here
     const uri = item?.uri === "${selectedItem}" ? this.treeView.selection[0]?.uri : item?.uri;
@@ -388,18 +395,20 @@ export class ScratchExtension extends DisposableContainer implements Disposable 
   };
 
   toggleSortOrder = () => {
-    const order = (this.treeDataProvider.sortOrder + 1) % SortOrderLength;
-    this.treeDataProvider.setSortOrder(order);
-    this.globalState.update("sortOrder", order);
+    this.globalState.update("sortOrder", this.treeDataProvider.cycleSortOrder());
   };
 
   openDirectory = () => vscode.commands.executeCommand("revealFileInOS", this.scratchDir);
 
-  pinScratch = async (scratch?: Scratch) =>
-    this.treeDataProvider.pinScratch(scratch ?? this.treeDataProvider.getItem(currentScratchUri()));
+  pinScratch = async (scratch?: ScratchFile) => {
+    const uri = scratch?.uri ?? currentScratchUri();
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    uri && this.pinStore.pin(uri);
+  };
 
-  unpinScratch = async (scratch?: Scratch) =>
-    this.treeDataProvider.unpinScratch(
-      scratch ?? this.treeDataProvider.getItem(currentScratchUri()),
-    );
+  unpinScratch = async (scratch?: ScratchFile) => {
+    const uri = scratch?.uri ?? currentScratchUri();
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    uri && this.pinStore.unpin(uri);
+  };
 }

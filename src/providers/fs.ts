@@ -16,6 +16,19 @@ import { call, pass } from "../util/fu";
 import { batch } from "../util/functions";
 import { asPromise, whenError } from "../util/promises";
 
+export interface ExtFileUpdateEvent {
+  type: FileChangeType.Changed | FileChangeType.Created;
+  uri: Uri;
+  stat: FileStat;
+}
+export interface ExtFileDeleteEvent extends FileChangeEvent {
+  type: FileChangeType.Deleted;
+  uri: Uri;
+  stat: undefined;
+}
+
+export type ExtFileChangeEvent = ExtFileUpdateEvent | ExtFileDeleteEvent;
+
 const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toString("utf8");
 
 const isFileSystemError = (err: unknown): err is FileSystemError => err instanceof FileSystemError;
@@ -45,7 +58,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   static readonly SCHEME = "scratch";
   static readonly ROOT = Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/`);
 
-  private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
+  private _onDidChangeFile = new EventEmitter<ExtFileChangeEvent[]>();
   readonly onDidChangeFile = this._onDidChangeFile.event;
 
   constructor(private readonly scratchDir: Uri) {}
@@ -80,29 +93,28 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
     const watchPath = this.toFilesystemUri(watchUri).fsPath;
     const baseDirName = fs.statSync(watchPath).isDirectory() ? path.basename(watchPath) : null;
 
-    const fireEvents = batch((events: FileChangeEvent[]) => {
+    const fireEvents = batch((events: ExtFileChangeEvent[]) => {
       this._onDidChangeFile.fire(events);
     }, 100);
 
     // Use node watcher as vscode.workspace version seem to be only
     // watching for changes within the workspace
     const watcher = fs.watch(watchPath, { recursive: options.recursive }, (event, filename) => {
-      // Supposedly filename is relative to watchPath, but unsure
+      // TODO: Supposedly filename is relative to watchPath, but unsure
       // how's that's gonna work in case if watchPath is a file
       // FIXME: when the watched directory is changed, the basename of the directory is sent as filename (not empty/null/'/' as one might expect) so this needs to be checked and converted to /. However, there might be other files/directories with the same name inside the watched directory, so this can't be applied blindly.
       const realFilename = filename === null || filename === baseDirName ? "" : filename;
       const uri = Uri.joinPath(watchUri, realFilename);
 
-      const makeChangeEvent =
-        event === "change"
-          ? Promise.resolve({ type: FileChangeType.Changed, uri })
-          : // event === "rename"
-            fs.promises
-              .stat(path.resolve(watchPath, realFilename))
-              .then(
-                pass({ type: FileChangeType.Created, uri }),
-                pass({ type: FileChangeType.Deleted, uri }),
-              );
+      const makeChangeEvent = vscode.workspace.fs.stat(Uri.joinPath(watchUri, realFilename)).then(
+        stat =>
+          ({
+            type: event === "change" ? FileChangeType.Changed : FileChangeType.Created,
+            uri,
+            stat,
+          }) as ExtFileUpdateEvent,
+        pass({ type: FileChangeType.Deleted, uri } as ExtFileDeleteEvent),
+      );
 
       makeChangeEvent.then(e => fireEvents([e]));
     });
@@ -161,7 +173,8 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
               : (content ?? new Uint8Array(0)),
           ),
         )
-          .then(() => this._onDidChangeFile.fire([event]))
+          .then(() => vscode.workspace.fs.stat(this.toFilesystemUri(uri)))
+          .then(stat => this._onDidChangeFile.fire([{ ...event, stat } as ExtFileChangeEvent]))
           .catch(
             whenError(isFileSystemError, err => {
               // Make sure the real fs uri is not leaked

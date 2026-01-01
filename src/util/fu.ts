@@ -40,8 +40,9 @@ export const call =
 
 export const apply =
   <T extends unknown[], U>(fn: (...args: T) => U) =>
-  (args: T): U =>
-    fn(...args);
+  (args: readonly [...T, ...unknown[]]): U =>
+    // Ignore excess arguments
+    fn(...(args.slice(0, fn.length) as T));
 
 export const filter =
   <T>(fn: (item: T) => boolean) =>
@@ -57,6 +58,8 @@ export const reduce =
   <T, U>(fn: (acc: U, item: T) => U, initial: U) =>
   (arr: T[]): U =>
     arr.reduce(fn, initial);
+
+export const concat = <T>(acc: T[], item: T[]): T[] => acc.concat(item);
 
 export const flat = <T>(arr: T[][]): T[] => arr.flat();
 

@@ -18,7 +18,7 @@ import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
 import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled } from "./util/prompt";
+import { isUserCancelled, PickerItemButton } from "./util/prompt";
 import { splitLines } from "./util/text";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";

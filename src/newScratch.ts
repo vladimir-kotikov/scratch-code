@@ -7,12 +7,7 @@ import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerCallback, PickerItem } from "./util/prompt";
 
 import * as vscode from "vscode";
-
-const splitLines = (text: string) =>
-  text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
+import { splitLines } from "./util/text";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 const makeFilenameSuggestion = (label: string): PickerItem<{}> => ({

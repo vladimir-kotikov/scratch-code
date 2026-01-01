@@ -10,7 +10,7 @@ import {
   TreeItemCollapsibleState,
   Uri,
 } from "vscode";
-import { DisposableContainer } from "../util/disposable";
+import { DisposableContainer } from "../util/containers";
 import { filter, flat, item, map, pipe, sort, zip } from "../util/fu";
 import { asPromise } from "../util/promises";
 import { PickerItem } from "../util/prompt";

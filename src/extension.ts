@@ -13,23 +13,18 @@ import {
   SortOrder,
   SortOrderLength,
 } from "./providers/tree";
-import { DisposableContainer } from "./util/disposable";
+import { DisposableContainer } from "./util/containers";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
 import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
-import { isUserCancelled, PickerItemButton } from "./util/prompt";
+import { isUserCancelled } from "./util/prompt";
+import { splitLines } from "./util/text";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
 
 const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
   str === undefined || str.trim() === "";
-
-const splitLines = (text: string) =>
-  text
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
 
 const currentScratchUri = () =>
   editor.getCurrentDocument()?.uri?.scheme === "scratch"

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { InputBoxOptions, QuickInputButton, QuickPickItem } from "vscode";
-import { DisposableContainer } from "./disposable";
+import { DisposableContainer } from "./containers";
 import { asPromise } from "./promises";
 
 type MaybeAsync<T> = T | PromiseLike<T>;

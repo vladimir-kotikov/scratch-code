@@ -2,7 +2,7 @@ import MiniSearch, { Options as SearchOptions, SearchResult } from "minisearch";
 import { match, P } from "ts-pattern";
 import * as vscode from "vscode";
 import { FileChangeType, FileSystemProvider, FileType, Uri } from "vscode";
-import { DisposableContainer } from "../util/disposable";
+import { DisposableContainer } from "../util/containers";
 import { flat, map } from "../util/fu";
 import { asPromise, waitPromises, whenError } from "../util/promises";
 import { isaDirectoryError, ScratchFileSystemProvider } from "./fs";

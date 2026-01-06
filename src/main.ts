@@ -57,9 +57,24 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
     vscode.commands.registerCommand("scratches.pin", extension.pinScratch),
     vscode.commands.registerCommand("scratches.unpin", extension.unpinScratch),
-    registerTool("listScratches", lmToolset.listScratches),
-    registerTool("readScratch", lmToolset.readScratch),
-    registerTool("writeScratch", lmToolset.writeScratch),
+    registerTool("list_scratches", lmToolset.listScratches, {
+      invocationMessage: options =>
+        `Reading list of scratches${options?.filter ? ` matching "${options.filter}"` : ""}.`,
+    }),
+    registerTool("read_scratch", lmToolset.readScratch, {
+      invocationMessage: ({ uri }) => `Reading ${uri}`,
+      confirmationMessage: ({ uri }) => ({
+        title: "Read scratch?",
+        message: uri.toString(),
+      }),
+    }),
+    registerTool("write_scratch", lmToolset.writeScratch, {
+      invocationMessage: ({ uri }) => `Writing ${uri}`,
+      confirmationMessage: ({ uri }) => ({
+        title: "Write scratch?",
+        message: uri.toString(),
+      }),
+    }),
     extension,
     treeDataProvider,
   );

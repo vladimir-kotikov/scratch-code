@@ -108,11 +108,11 @@
     ],
     "languageModelTools": [
       {
-        "name": "listScratches",
+        "name": "list_scratches",
         "displayName": "List Scratches",
         "icon": "${list}",
         "canBeReferencedInPrompt": true,
-        "toolReferenceName": "listScratches",
+        "toolReferenceName": "list_scratches",
         "userDescription": "Lists available scratches",
         "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered by a glob pattern.\nUse when user asks to see available scratches or find files by pattern.\n\nParameters:\n- filter (optional): Glob pattern (e.g., \"**/*.ts\" for TypeScript, \"**/notes/**\" for directory)\n\nExamples:\n- {} → \"scratch:///notes.md\\nscratch:///todo.txt\"\n- { filter: \"**/*.ts\" } → \"scratch:///code/example.ts\"\n\nReturns: Newline-separated URIs or \"No scratches found.\"",
         "tags": [
@@ -131,11 +131,11 @@
         }
       },
       {
-        "name": "readScratch",
+        "name": "read_scratch",
         "displayName": "Read Scratch",
         "icon": "$(file-text)",
         "canBeReferencedInPrompt": true,
-        "toolReferenceName": "readScratch",
+        "toolReferenceName": "read_scratch",
         "userDescription": "Reads content from a scratch file",
         "modelDescription": "Reads the content of a scratch file, optionally reading a specific line range.\nUse when user asks to view or retrieve scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- lineFrom (optional): Starting line number (0-based, inclusive)\n- lineTo (optional): Ending line number (0-based, exclusive)\n\nExamples:\n- { uri: \"scratch:///notes.md\" } → full file content\n- { uri: \"scratch:///code.ts\", lineFrom: 10, lineTo: 20 } → lines 10-19\n\nReturns: File content as string.",
         "tags": [
@@ -164,11 +164,11 @@
         }
       },
       {
-        "name": "writeScratch",
+        "name": "write_scratch",
         "displayName": "Write Scratch",
         "icon": "$(save)",
         "canBeReferencedInPrompt": true,
-        "toolReferenceName": "writeScratch",
+        "toolReferenceName": "write_scratch",
         "userDescription": "Writes content to a scratch file",
         "modelDescription": "Writes content to a scratch file, creating it if it doesn't exist or overwriting if it does.\nUse when user asks to save, create, or update scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- content (required): Content to write to the file\n\nExamples:\n- { uri: \"scratch:///notes.md\", content: \"My notes\" } → creates/overwrites file\n- { uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratch written successfully.\"",
         "tags": [

@@ -4,7 +4,8 @@ import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult, 
 import { DisposableContainer } from "../util/containers";
 import { map, prop } from "../util/fu";
 import { asPromise } from "../util/promises";
-import { splitLines, splitWords } from "../util/text";
+import { splitLines, splitWords, strip } from "../util/text";
+import { ensureUri, uriPath } from "../util/uri";
 import { ScratchFileSystemProvider } from "./fs";
 import { ScratchTreeProvider } from "./tree";
 
@@ -23,9 +24,13 @@ type WriteScratchOptions = {
   content: string;
 };
 
+export type RenameScratchOptions = {
+  oldUri: string | Uri;
+  newUri: string | Uri;
+};
+
 type MaybeArray<T> = T | T[];
 type MaybePromiseLike<T> = T | PromiseLike<T>;
-
 type LmResponsePart = LanguageModelTextPart | LanguageModelDataPart;
 
 export class ScratchLmToolkit extends DisposableContainer {
@@ -49,7 +54,7 @@ export class ScratchLmToolkit extends DisposableContainer {
 
   readScratch = ({ uri, lineFrom, lineTo }: ReadScratchOptions) =>
     this.fs
-      .readFile(uri instanceof Uri ? uri : Uri.parse(uri))
+      .readFile(ensureUri(uri))
       .then(bytes => new TextDecoder().decode(bytes))
       .then(content => {
         if (lineFrom !== undefined || lineTo !== undefined) {
@@ -59,11 +64,13 @@ export class ScratchLmToolkit extends DisposableContainer {
       });
 
   writeScratch = ({ uri, content }: WriteScratchOptions) =>
-    this.fs
-      .writeFile(uri instanceof Uri ? uri : Uri.parse(uri), content, {
+    this.fs.writeFile(ensureUri(uri), content, {
         create: true,
         overwrite: true,
     });
+
+  renameScratch = ({ oldUri, newUri }: RenameScratchOptions) =>
+    this.fs.rename(ensureUri(oldUri), ensureUri(newUri), { overwrite: true });
 }
 
 const maybeCall = <T, U>(val: T | ((arg: U) => T), arg: U): T => {

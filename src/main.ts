@@ -5,6 +5,8 @@ import { ScratchExtension } from "./extension";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { registerTool, ScratchLmToolkit } from "./providers/lm";
 import { ScratchTreeProvider, SortOrder } from "./providers/tree";
+import { strip } from "./util/text";
+import { uriPath } from "./util/uri";
 
 const scratchUriScheme = "scratch";
 
@@ -73,6 +75,14 @@ export function activate(context: vscode.ExtensionContext) {
       confirmationMessage: ({ uri }) => ({
         title: "Write scratch?",
         message: uri.toString(),
+      }),
+    }),
+    registerTool("rename_scratch", lmToolset.renameScratch, {
+      invocationMessage: ({ oldUri, newUri }) =>
+        `Moving ${oldUri} to ${strip(uriPath(newUri), ["/"])}`,
+      confirmationMessage: ({ oldUri, newUri }) => ({
+        title: "Move/rename scratch?",
+        message: `Move/rename ${oldUri} -> ${strip(uriPath(newUri), ["/"])}.`,
       }),
     }),
     extension,

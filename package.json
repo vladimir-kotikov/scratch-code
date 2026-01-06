@@ -192,6 +192,36 @@
             "content"
           ]
         }
+      },
+      {
+        "name": "rename_scratch",
+        "displayName": "Rename Scratch",
+        "icon": "$(edit)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "rename_scratch",
+        "userDescription": "Renames or moves a scratch file",
+        "modelDescription": "Renames or moves a scratch file from one URI to another.\nUse when user asks to rename or move a scratch file to a new location or name.\n\nNOTE: This tool modifies the file system and cannot be undone. Always confirm the old and new URIs with the user before proceeding.\n\nParameters:\n- oldUri (required): Current scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- newUri (required): New scratch URI (e.g., \"scratch:///renamed-notes.md\") or URI string\n\nExamples:\n- { oldUri: \"scratch:///notes.md\", newUri: \"scratch:///notes-backup.md\" } → renames file\n- { oldUri: \"scratch:///misc/todo.txt\", newUri: \"scratch:///lists/todo.txt\" } → moves file\n\nReturns: \"Scratch renamed successfully.\"",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "oldUri": {
+              "type": "string",
+              "description": "The current scratch URI to rename from. Must be a valid scratch:// URI or URI string."
+            },
+            "newUri": {
+              "type": "string",
+              "description": "The new scratch URI to rename to. Must be a valid scratch:// URI or URI string. Parent directories will be created if needed."
+            }
+          },
+          "required": [
+            "oldUri",
+            "newUri"
+          ]
+        }
       }
     ],
     "configuration": {

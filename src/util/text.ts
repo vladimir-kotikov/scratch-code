@@ -17,3 +17,16 @@ export const splitWords = (text: string): string[] => {
     .map(word => word.trim())
     .filter(word => word.length > 0);
 };
+
+export const strip = (text: string, symbols: string[]): string => {
+  let result = text;
+  for (const symbol of symbols) {
+    if (result.startsWith(symbol)) {
+      result = result.slice(symbol.length);
+    }
+    if (result.endsWith(symbol)) {
+      result = result.slice(0, -symbol.length);
+    }
+  }
+  return result;
+};

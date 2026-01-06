@@ -170,7 +170,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "write_scratch",
         "userDescription": "Writes content to a scratch file",
-        "modelDescription": "Writes content to a scratch file, creating it if it doesn't exist or overwriting if it does.\nUse when user asks to save, create, or update scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- content (required): Content to write to the file\n\nExamples:\n- { uri: \"scratch:///notes.md\", content: \"My notes\" } → creates/overwrites file\n- { uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratch written successfully.\"",
+        "modelDescription": "Writes content to a scratch file, creating it if it doesn't exist or overwriting if it does.\nUse when user asks to save, create, or update scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- content (required): Content to write to the file\n\nExamples:\n- { uri: \"scratch:///notes.md\", content: \"My notes\" } → creates/overwrites file\n- { uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratch written successfully.\". After writing always provide a short (1-2 lines) sumary of changes made,",
         "tags": [
           "scratches",
           "memory"

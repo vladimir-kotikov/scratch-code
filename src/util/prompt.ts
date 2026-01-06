@@ -2,10 +2,9 @@ import * as vscode from "vscode";
 import { InputBoxOptions, QuickInputButton, QuickPickItem } from "vscode";
 import { DisposableContainer } from "./containers";
 import { asPromise } from "./promises";
+import { isEmpty } from "./text";
 
 type MaybeAsync<T> = T | PromiseLike<T>;
-
-const isEmpty = (str: string) => str.trim().length === 0;
 
 export class UserCancelled extends Error {
   static error = new UserCancelled();

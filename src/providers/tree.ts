@@ -14,17 +14,12 @@ import { DisposableContainer } from "../util/containers";
 import { filter, flat, item, map, pipe, sort, zip } from "../util/fu";
 import { asPromise } from "../util/promises";
 import { PickerItem } from "../util/prompt";
-import { ScratchFileSystemProvider } from "./fs";
+import { isDir, isFile, ScratchFileSystemProvider } from "./fs";
 import { PinStore } from "./pinStore";
-
-type FileTuple = [Uri, FileStat];
 
 const IGNORED_FILES = new Set([".DS_Store", ".pinstore"]);
 
-const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.File;
-
-const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
-
+type FileTuple = [Uri, FileStat];
 export type ScratchTreeNode = Scratch | ScratchFolder;
 
 export class ScratchFolder {

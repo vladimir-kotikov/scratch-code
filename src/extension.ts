@@ -1,5 +1,4 @@
 import * as path from "path";
-import { basename } from "path";
 import { match } from "ts-pattern";
 import * as vscode from "vscode";
 import { Uri } from "vscode";
@@ -19,11 +18,6 @@ const DEBUG = process.env.SCRATCHES_DEBUG === "1";
 
 const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
   str === undefined || str.trim() === "";
-
-const currentScratchUri = () =>
-  editor.getCurrentDocument()?.uri?.scheme === "scratch"
-    ? editor.getCurrentDocument()?.uri
-    : undefined;
 
 // TODO: Check and handle corner cases:
 // - delay updating the index in watcher events until the index is loaded/populated
@@ -371,7 +365,7 @@ export class ScratchExtension extends DisposableContainer {
   };
 
   rename = async (scratch?: Scratch | Uri, to?: Uri) => {
-    const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? currentScratchUri();
+    const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? editor.getCurrentScratchUri();
     if (from === undefined) return;
 
     const toPromise =
@@ -415,7 +409,7 @@ export class ScratchExtension extends DisposableContainer {
       .catch(err =>
         match(err)
           .when(isUserCancelled, pass())
-          .otherwise(err => prompt.warn(`Could not delete ${basename(uri.path)}: ${err}`)),
+          .otherwise(err => prompt.warn(`Could not delete ${path.basename(uri.path)}: ${err}`)),
       );
   };
 
@@ -430,11 +424,11 @@ export class ScratchExtension extends DisposableContainer {
 
   pinScratch = async (scratch?: Scratch | Uri) =>
     this.treeDataProvider.pinScratch(
-      scratch instanceof Uri ? scratch : (scratch?.uri ?? currentScratchUri()),
+      scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri()),
     );
 
   unpinScratch = async (scratch?: Scratch | Uri) =>
     this.treeDataProvider.unpinScratch(
-      scratch instanceof Uri ? scratch : (scratch?.uri ?? currentScratchUri()),
+      scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri()),
     );
 }

@@ -7,7 +7,9 @@ export const openDocument = (uri?: Uri) =>
 
 export const getCurrent = () => vscode.window.activeTextEditor;
 export const getCurrentDocument = () => getCurrent()?.document;
-export const getCurrentContent = () => getCurrent()?.document.getText() ?? "";
+export const getCurrentContent = () => getCurrentDocument()?.getText() ?? "";
+export const getCurrentScratchUri = () =>
+  getCurrentDocument()?.uri?.scheme === "scratch" ? getCurrentDocument()?.uri : undefined;
 export const getCurrentSelection = () => {
   // TODO: multiple selections
   const editor = getCurrent();

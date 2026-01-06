@@ -7,7 +7,7 @@ import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerCallback, PickerItem } from "./util/prompt";
 
 import * as vscode from "vscode";
-import { splitLines } from "./util/text";
+import { isEmpty, splitLines } from "./util/text";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 const makeFilenameSuggestion = (label: string): PickerItem<{}> => ({
@@ -97,7 +97,7 @@ type NewScratchPickerCallback = (filename?: string, content?: string | Uint8Arra
 // - + [create from current file] (if file is opened and the value is non-empty)
 // - + [create blank scratch]
 export const newScratchPicker = (createScratch: NewScratchPickerCallback) => {
-  const hasNonEmptySelection = editor.getCurrentSelection().trim().length > 0;
+  const hasNonEmptySelection = !isEmpty(editor.getCurrentSelection());
   const currentFilename =
     editor.getCurrentDocument()?.isUntitled === false
       ? path.basename(editor.getCurrentDocument()!.fileName)

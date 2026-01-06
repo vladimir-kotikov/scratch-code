@@ -65,8 +65,8 @@ export class ScratchLmToolkit extends DisposableContainer {
 
   writeScratch = ({ uri, content }: WriteScratchOptions) =>
     this.fs.writeFile(ensureUri(uri), content, {
-        create: true,
-        overwrite: true,
+      create: true,
+      overwrite: true,
     });
 
   renameScratch = ({ oldUri, newUri }: RenameScratchOptions) =>

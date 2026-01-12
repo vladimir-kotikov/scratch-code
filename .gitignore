@@ -4,6 +4,7 @@ node_modules
 .vscode-test/
 .uitest-temp/
 *.vsix
+*.tgz
 
 *.log
 

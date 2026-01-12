@@ -315,18 +315,18 @@
     }
   },
   "scripts": {
-    "check-types": "tsc --noEmit",
-    "compile": "npm run check-types && node .esbuild.js",
-    "compile:tests": "tsc",
-    "watch": "npx npm-run-all -p watch:*",
-    "watch:esbuild": "node .esbuild.js --watch",
+    "compile:extension": "node .esbuild.js",
+    "compile:tests": "npx rimraf out && tsc",
+    "compile": "npx npm-run-all -p compile:*",
+    "watch:extension": "node .esbuild.js --watch",
     "watch:tests": "tsc --watch",
-    "vscode:prepublish": "npm run package",
-    "package": "npm run check-types && node .esbuild.js --production",
+    "watch": "npx npm-run-all -p watch:*",
+    "vscode:prepublish": "tsc --noEmit && node .esbuild.js --production",
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
-    "test": "npx rimraf out && npm run compile:tests && vscode-test",
-    "ui:test": "npx extest run-tests 'out/ui-test/**/*.test.js' --storage .uitest-temp/ --code_version max --type stable --extensions_dir .uitest-temp/extensions",
+    "test:unit": "npm run compile:tests && vscode-test",
+    "test:ui": "npm run compile && npx extest run-tests 'out/ui-test/**/*.test.js' --storage .uitest-temp/ --code_version max --type stable --extensions_dir .uitest-temp/extensions",
+    "test": "npm run test:unit && npm run test:ui",
     "prepare": "npx husky || true"
   },
   "devDependencies": {
@@ -336,10 +336,11 @@
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.0",
-    "esbuild": "^0.25.12",
+    "esbuild": "^0.27.2",
     "eslint": "^9.39.1",
-    "globals": "^16.5.0",
+    "globals": "^17.0.0",
     "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "mocha": "^11.0.0",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
@@ -354,5 +355,12 @@
   "prettier": {
     "printWidth": 100,
     "arrowParens": "avoid"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.md": "prettier --write"
   }
 }

@@ -7,6 +7,8 @@ resources/extension.svg
 \.*/**
 **/*.js.map
 
+*.tgz
+
 .vscode-test/
 .uitest-temp/
 

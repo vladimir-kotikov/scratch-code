@@ -1,3 +1,4 @@
+import { By, until } from "selenium-webdriver";
 import { TextEditor, VSBrowser } from "vscode-extension-tester";
 import {
   assertScratchContent,
@@ -115,7 +116,11 @@ describe("Drag'n'drop from editor", () => {
 
     await VSBrowser.instance
       .openResources("src/ui-test/fixtures/lorem_ipsum.txt")
-      .then(() => new TextEditor().getTab())
+      .then(async () => {
+        const driver = VSBrowser.instance.driver;
+        await driver.wait(until.elementLocated(By.css(".monaco-editor")), 5000);
+        return new TextEditor().getTab();
+      })
       .then(tab => getScratchesView().then(view => dragDrop(tab, view)));
 
     await assertTreeOfShape(["file.txt", "lorem_ipsum.txt"]);

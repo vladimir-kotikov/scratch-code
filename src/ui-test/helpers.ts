@@ -8,10 +8,12 @@ import {
   TreeItem,
   ViewSection,
   WebElement,
+  Workbench,
 } from "@redhat-developer/page-objects";
 import assert from "assert";
 import fs from "fs";
 import path from "path";
+import { By, until } from "selenium-webdriver";
 import { VSBrowser } from "vscode-extension-tester";
 import { map, reduce } from "../util/fu";
 
@@ -135,6 +137,9 @@ export const assertScratchContent = async (filename: string, expectedContent: st
 };
 
 export const getScratchesView = async () => {
+  // Ensure sidebar is visible (some runs hide it after new editor opens)
+  await new Workbench().executeCommand("workbench.view.explorer");
+
   const activityBar = new ActivityBar();
   const scratches = await activityBar
     .getViewControl("Scratches")
@@ -283,19 +288,24 @@ export const makeScratchTree = async (files: string[]) => {
 
 export const makeUntitledDocument = async (content: string) => {
   const driver = VSBrowser.instance.driver;
-  // Open new untitled document
-  await driver
-    .actions()
-    .keyDown("\uE03D") // Ctrl/Cmd
-    .sendKeys("n")
-    .keyUp("\uE03D")
-    .perform();
-  // Wait for editor to open
-  await driver.sleep(500);
+  // Use command instead of keystroke to avoid layout side effects
+  await new Workbench().executeCommand("workbench.action.files.newUntitledFile");
 
-  const editor = new TextEditor();
-  await editor.setText(content);
-  return editor;
+  // Wait for an editor surface to appear, then create TextEditor
+  await driver.wait(until.elementLocated(By.css(".monaco-editor")), 5000);
+
+  // Retry creating TextEditor in case the widget is still mounting
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const editor = new TextEditor();
+      await editor.setText(content);
+      return editor;
+    } catch {
+      await driver.sleep(200 + attempt * 50);
+    }
+  }
+
+  throw new Error("Failed to create TextEditor instance");
 };
 
 export const submitInput = async (

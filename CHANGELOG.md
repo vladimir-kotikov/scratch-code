@@ -1,6 +1,11 @@
 # Changelog
 
-## [0.5.0 prerelease]
+## [0.5.1]
+
+- Scratch LM tools updates: better messages and consistent naming
+- Add rename/move LM tool
+
+## [0.5.0]
 
 - Add LM tools for reading and creating scratches to incorporate into Copilot workflows workflows
 

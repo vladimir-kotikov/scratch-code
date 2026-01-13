@@ -20,15 +20,15 @@ export const splitWords = (text: string): string[] => {
     .filter(word => word.length > 0);
 };
 
-export const strip = (text: string, symbols: string[]): string => {
+export const strip = (text: string, symbols: string): string => {
   let result = text;
-  for (const symbol of symbols) {
-    if (result.startsWith(symbol)) {
-      result = result.slice(symbol.length);
-    }
-    if (result.endsWith(symbol)) {
-      result = result.slice(0, -symbol.length);
-    }
+  // Remove all matching characters from the start
+  while (result.length > 0 && symbols.includes(result[0])) {
+    result = result.slice(1);
+  }
+  // Remove all matching characters from the end
+  while (result.length > 0 && symbols.includes(result[result.length - 1])) {
+    result = result.slice(0, -1);
   }
   return result;
 };

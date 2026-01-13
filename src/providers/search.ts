@@ -115,11 +115,11 @@ export class SearchIndexProvider extends DisposableContainer {
 
   load = () =>
     asPromise(vscode.workspace.fs.readFile(this.indexFile))
-      .then(data => MiniSearch.loadJSON(data.toString(), searchOptions))
-      .then(index => {
+      .then(data => {
+        const index = MiniSearch.loadJSON(data.toString(), searchOptions);
         this.index = index;
         this._onDidLoad.fire();
-      })
+      }, whenError())
       .catch(err => this._onLoadError.fire(err));
 
   save = () =>

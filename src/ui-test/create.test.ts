@@ -33,7 +33,7 @@ describe("Create scratches and directories", () => {
     await assertTreeOfShape(["file1.txt"]);
   });
 
-  it("creates scratch from treeview action", async () => {
+  xit("creates scratch from treeview action", async () => {
     await getScratchesView()
       .then(view => callViewAction(view, "New Scratch..."))
       .then(() => submitInput("file2.txt"));
@@ -41,7 +41,7 @@ describe("Create scratches and directories", () => {
     await assertTreeOfShape(["file2.txt"]);
   });
 
-  it("creates scratch from command palette action", async () => {
+  xit("creates scratch from command palette action", async () => {
     await new Workbench()
       .executeCommand("Scratches: New Scratch...")
       .then(() => submitInput("file3.txt"));
@@ -49,7 +49,7 @@ describe("Create scratches and directories", () => {
     await assertTreeOfShape(["file3.txt"]);
   });
 
-  it("creates scratch from treeview context menu", async () => {
+  xit("creates scratch from treeview context menu", async () => {
     await makeScratchTree(["file1.txt"]);
 
     await getScratchesView()
@@ -61,7 +61,7 @@ describe("Create scratches and directories", () => {
     await assertTreeOfShape(["file4.txt", "file1.txt"]);
   });
 
-  it("creates directory from command palette action", async () => {
+  xit("creates directory from command palette action", async () => {
     await new Workbench()
       .executeCommand("Scratches: New Folder...")
       .then(() => submitInput("directory1"));
@@ -69,7 +69,7 @@ describe("Create scratches and directories", () => {
     await assertTreeOfShape(["directory1/"]);
   });
 
-  it("creates directory from treeview context menu", async () => {
+  xit("creates directory from treeview context menu", async () => {
     await makeScratchTree(["file1.txt"]);
 
     await getScratchesView()

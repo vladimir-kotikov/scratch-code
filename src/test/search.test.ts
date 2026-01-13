@@ -3,7 +3,7 @@ import * as fs from "fs";
 import { describe, it } from "mocha";
 import * as os from "os";
 import * as path from "path";
-import { FileChangeType, Uri } from "vscode";
+import { FileChangeType, FileType, Uri } from "vscode";
 import { SearchIndexProvider } from "../providers/search";
 import { MockFS } from "./mock/fs";
 
@@ -42,7 +42,11 @@ describe("SearchIndexProvider", () => {
   it("adds a file via watcher and makes it searchable", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
-    fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
+    fs.triggerChange({
+      type: FileChangeType.Created,
+      uri: Uri.parse("scratch:/foo.txt"),
+      stat: { ctime: 0, mtime: 0, size: 11, type: FileType.File },
+    });
     await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
     assert.ok(results.some(r => r.path === "foo.txt"));
@@ -52,10 +56,18 @@ describe("SearchIndexProvider", () => {
   it("updates a file via watcher and reflects in search", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
-    fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
+    fs.triggerChange({
+      type: FileChangeType.Created,
+      uri: Uri.parse("scratch:/foo.txt"),
+      stat: { ctime: 0, mtime: 0, size: 11, type: FileType.File },
+    });
     await new Promise(r => setTimeout(r, 10));
     fs.files["foo.txt"].content = "updated content";
-    fs.triggerChange({ type: FileChangeType.Changed, uri: Uri.parse("foo.txt") });
+    fs.triggerChange({
+      type: FileChangeType.Changed,
+      uri: Uri.parse("scratch:/foo.txt"),
+      stat: { ctime: 0, mtime: 1, size: 15, type: FileType.File },
+    });
     await new Promise(r => setTimeout(r, 10));
     const results = provider.search("updated");
     assert.ok(results.some(r => r.path === "foo.txt"));
@@ -65,10 +77,14 @@ describe("SearchIndexProvider", () => {
   it("removes a file via watcher and it disappears from search", async () => {
     const fs = new MockFS({ "foo.txt": { content: "hello world" } });
     const provider = new SearchIndexProvider(fs, indexFile());
-    fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
+    fs.triggerChange({
+      type: FileChangeType.Created,
+      uri: Uri.parse("scratch:/foo.txt"),
+      stat: { ctime: 0, mtime: 0, size: 11, type: FileType.File },
+    });
     await new Promise(r => setTimeout(r, 10));
     fs.files = {}; // Remove all files
-    fs.triggerChange({ type: FileChangeType.Deleted, uri: Uri.parse("foo.txt") });
+    fs.triggerChange({ type: FileChangeType.Deleted, uri: Uri.parse("scratch:/foo.txt") } as any);
     await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
     assert.deepEqual(results, []);
@@ -110,8 +126,16 @@ describe("SearchIndexProvider", () => {
       "bar.txt": { content: "another test" },
     });
     const provider = new SearchIndexProvider(fs, indexFile());
-    fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("foo.txt") });
-    fs.triggerChange({ type: FileChangeType.Created, uri: Uri.parse("bar.txt") });
+    fs.triggerChange({
+      type: FileChangeType.Created,
+      uri: Uri.parse("scratch:/foo.txt"),
+      stat: { ctime: 0, mtime: 0, size: 11, type: FileType.File },
+    });
+    fs.triggerChange({
+      type: FileChangeType.Created,
+      uri: Uri.parse("scratch:/bar.txt"),
+      stat: { ctime: 0, mtime: 0, size: 12, type: FileType.File },
+    });
     await new Promise(r => setTimeout(r, 10));
     const results = provider.search("hello");
     assert.ok(results.some(r => r.path === "foo.txt"));

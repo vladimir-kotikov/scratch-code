@@ -6,6 +6,7 @@ import {
   EventEmitter,
   FileChangeEvent,
   FileChangeType,
+  FileStat,
   FileSystemError,
   FileSystemProvider,
   FileType,
@@ -14,7 +15,19 @@ import {
 import { call, pass } from "../util/fu";
 import { batch } from "../util/functions";
 import { asPromise, whenError } from "../util/promises";
-import { SCHEME, toFilesystemUri } from "../util/uri";
+
+export interface ExtFileUpdateEvent {
+  type: FileChangeType.Changed | FileChangeType.Created;
+  uri: Uri;
+  stat: FileStat;
+}
+export interface ExtFileDeleteEvent extends FileChangeEvent {
+  type: FileChangeType.Deleted;
+  uri: Uri;
+  stat: undefined;
+}
+
+export type ExtFileChangeEvent = ExtFileUpdateEvent | ExtFileDeleteEvent;
 
 const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toString("utf8");
 
@@ -38,23 +51,35 @@ export const isNotEmptyDirectory = (err: unknown): boolean => {
   );
 };
 
-export const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.File;
-
-export const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
+const isFile = (stat: FileStat): boolean =>
+  stat.type === FileType.File || stat.type === (FileType.File | FileType.SymbolicLink);
 
 export class ScratchFileSystemProvider implements FileSystemProvider, Disposable {
-  static readonly SCHEME = SCHEME;
+  static readonly SCHEME = "scratch";
   static readonly ROOT = Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/`);
 
-  private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
+  private _onDidChangeFile = new EventEmitter<ExtFileChangeEvent[]>();
   readonly onDidChangeFile = this._onDidChangeFile.event;
 
-  constructor(readonly scratchDir: Uri) {
-    fs.mkdirSync(scratchDir.fsPath, { recursive: true });
-  }
+  constructor(readonly scratchDir: Uri) {}
 
   dispose = () => {
     this._onDidChangeFile.dispose();
+  };
+
+  private toFilesystemUri = (uri: Uri): Uri => {
+    if (uri.scheme !== ScratchFileSystemProvider.SCHEME) {
+      throw new Error(`Invalid URI scheme: ${uri.scheme}`);
+    }
+    return Uri.joinPath(this.scratchDir, uri.path);
+  };
+
+  private toScratchUri = (uri: Uri): Uri => {
+    const relativePath = path.relative(this.scratchDir.fsPath, uri.fsPath);
+    if (relativePath.startsWith("..")) {
+      throw new Error(`URI is outside of scratch directory: ${uri.toString()}`);
+    }
+    return Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/${relativePath}`);
   };
 
   watch = (
@@ -65,32 +90,31 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
     } = {},
   ): Disposable => {
     const watchUri = uri ?? ScratchFileSystemProvider.ROOT;
-    const watchPath = toFilesystemUri(this.scratchDir, watchUri).fsPath;
+    const watchPath = this.toFilesystemUri(watchUri).fsPath;
     const baseDirName = fs.statSync(watchPath).isDirectory() ? path.basename(watchPath) : null;
 
-    const fireEvents = batch((events: FileChangeEvent[]) => {
+    const fireEvents = batch((events: ExtFileChangeEvent[]) => {
       this._onDidChangeFile.fire(events);
     }, 100);
 
     // Use node watcher as vscode.workspace version seem to be only
     // watching for changes within the workspace
     const watcher = fs.watch(watchPath, { recursive: options.recursive }, (event, filename) => {
-      // Supposedly filename is relative to watchPath, but unsure
+      // TODO: Supposedly filename is relative to watchPath, but unsure
       // how's that's gonna work in case if watchPath is a file
       // FIXME: when the watched directory is changed, the basename of the directory is sent as filename (not empty/null/'/' as one might expect) so this needs to be checked and converted to /. However, there might be other files/directories with the same name inside the watched directory, so this can't be applied blindly.
       const realFilename = filename === null || filename === baseDirName ? "" : filename;
       const uri = Uri.joinPath(watchUri, realFilename);
 
-      const makeChangeEvent =
-        event === "change"
-          ? Promise.resolve({ type: FileChangeType.Changed, uri })
-          : // event === "rename"
-            fs.promises
-              .stat(path.resolve(watchPath, realFilename))
-              .then(
-                pass({ type: FileChangeType.Created, uri }),
-                pass({ type: FileChangeType.Deleted, uri }),
-              );
+      const makeChangeEvent = vscode.workspace.fs.stat(Uri.joinPath(watchUri, realFilename)).then(
+        stat =>
+          ({
+            type: event === "change" ? FileChangeType.Changed : FileChangeType.Created,
+            uri,
+            stat,
+          }) as ExtFileUpdateEvent,
+        pass({ type: FileChangeType.Deleted, uri } as ExtFileDeleteEvent),
+      );
 
       makeChangeEvent.then(e => fireEvents([e]));
     });
@@ -101,16 +125,15 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
     });
   };
 
-  stat = (uri: Uri) => vscode.workspace.fs.stat(toFilesystemUri(this.scratchDir, uri));
+  stat = (uri: Uri) => vscode.workspace.fs.stat(this.toFilesystemUri(uri));
 
   readDirectory = (uri: Uri): Thenable<[string, FileType][]> =>
-    vscode.workspace.fs.readDirectory(toFilesystemUri(this.scratchDir, uri));
+    vscode.workspace.fs.readDirectory(this.toFilesystemUri(uri));
 
-  createDirectory = (uri: Uri) =>
-    vscode.workspace.fs.createDirectory(toFilesystemUri(this.scratchDir, uri));
+  createDirectory = (uri: Uri) => vscode.workspace.fs.createDirectory(this.toFilesystemUri(uri));
 
   readFile = (uri: Uri): Thenable<Uint8Array> =>
-    vscode.workspace.fs.readFile(toFilesystemUri(this.scratchDir, uri));
+    vscode.workspace.fs.readFile(this.toFilesystemUri(uri));
 
   readLines = (uri: Uri) => this.readFile(uri).then(bytesToString).then(call("split", "\n"));
 
@@ -131,7 +154,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
           if (!options.overwrite) {
             throw FileSystemError.FileExists(uri);
           }
-          if (!isFile(stat.type)) {
+          if (!isFile(stat)) {
             throw FileSystemError.FileIsADirectory(uri);
           }
           return { type: FileChangeType.Changed, uri };
@@ -144,29 +167,30 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
       .then(event =>
         asPromise(
           vscode.workspace.fs.writeFile(
-            toFilesystemUri(this.scratchDir, uri),
+            this.toFilesystemUri(uri),
             typeof content === "string"
               ? Buffer.from(content, "utf8")
               : (content ?? new Uint8Array(0)),
           ),
         )
-          .then(() => this._onDidChangeFile.fire([event]))
+          .then(() => vscode.workspace.fs.stat(this.toFilesystemUri(uri)))
+          .then(stat => this._onDidChangeFile.fire([{ ...event, stat } as ExtFileChangeEvent]))
           .catch(
             whenError(isFileSystemError, err => {
               // Make sure the real fs uri is not leaked
-              (err as FileSystemError).message = toFilesystemUri(this.scratchDir, uri).toString();
+              (err as FileSystemError).message = this.toFilesystemUri(uri).toString();
               throw err;
             }),
           ),
       );
 
   delete = (uri: Uri, options?: { readonly recursive: boolean }) =>
-    asPromise(vscode.workspace.fs.delete(toFilesystemUri(this.scratchDir, uri), options));
+    asPromise(vscode.workspace.fs.delete(this.toFilesystemUri(uri), options));
 
   async rename(oldUri: Uri, newUri: Uri, options?: { readonly overwrite: boolean }): Promise<void> {
     await vscode.workspace.fs.rename(
-      toFilesystemUri(this.scratchDir, oldUri),
-      toFilesystemUri(this.scratchDir, newUri),
+      this.toFilesystemUri(oldUri),
+      this.toFilesystemUri(newUri),
       options,
     );
   }

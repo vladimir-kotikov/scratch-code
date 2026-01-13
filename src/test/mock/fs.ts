@@ -1,17 +1,17 @@
-import { EventEmitter, FileChangeEvent, FileType, Uri } from "vscode";
-import { ScratchFileSystemProvider } from "../../providers/fs";
+import { EventEmitter, FileType, Uri } from "vscode";
+import { ExtFileChangeEvent, ScratchFileSystemProvider } from "../../providers/fs";
 
 export class MockFS extends ScratchFileSystemProvider {
   public files: Record<string, { mtime?: number; type?: FileType; content?: string }>;
   public fileBuffers: Record<string, Buffer>;
-  private _onDidChangeFileEmitter: EventEmitter<FileChangeEvent[]>;
+  private _onDidChangeFileEmitter: EventEmitter<ExtFileChangeEvent[]>;
   public onDidChangeFile: typeof ScratchFileSystemProvider.prototype.onDidChangeFile;
 
   constructor(files: Record<string, { mtime?: number; type?: FileType; content?: string }>) {
     super(Uri.parse("scratch:/"));
     this.files = files;
     this.fileBuffers = {};
-    this._onDidChangeFileEmitter = new EventEmitter<FileChangeEvent[]>();
+    this._onDidChangeFileEmitter = new EventEmitter<ExtFileChangeEvent[]>();
     this.syncBuffers();
     this.onDidChangeFile = this._onDidChangeFileEmitter.event;
   }
@@ -86,7 +86,7 @@ export class MockFS extends ScratchFileSystemProvider {
     this.syncBuffers();
   };
 
-  triggerChange = (event: FileChangeEvent) => {
+  triggerChange = (event: ExtFileChangeEvent) => {
     this.syncBuffers();
     this._onDidChangeFileEmitter.fire([event]);
   };

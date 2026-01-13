@@ -58,6 +58,8 @@ export const reduce =
   (arr: T[]): U =>
     arr.reduce(fn, initial);
 
+export const concat = <T>(...arrays: T[][]): T[] => arrays.flat();
+
 export const flat = <T>(arr: T[][]): T[] => arr.flat();
 
 export const split = <T>(
@@ -104,7 +106,7 @@ export const sort =
  * @returns A comparator function that sorts items within the same group using the provided comparator.
  */
 sort.group =
-  <T>(fn: (a: T) => boolean, ...cmps: Cmp<T>[]) =>
+  <T, U extends T>(fn: (a: T) => a is U, ...cmps: Cmp<U>[]) =>
   (a: T, b: T) =>
     fn(a) && fn(b) ? composeComparators(...cmps)(a, b) : 0;
 

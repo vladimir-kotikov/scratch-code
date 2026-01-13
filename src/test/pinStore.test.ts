@@ -7,7 +7,7 @@ import { MockFS } from "./mock/fs";
 describe("PinStore", () => {
   it("initializes with empty store", async () => {
     const fs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     // Wait for load to complete
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
@@ -22,7 +22,7 @@ describe("PinStore", () => {
     const fs = new MockFS({
       ".pinstore": { mtime: 0, content: pinned.join("\n") + "\n" },
     });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -34,7 +34,7 @@ describe("PinStore", () => {
 
   it("pins a new item", async () => {
     const fs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -50,7 +50,7 @@ describe("PinStore", () => {
     const fs = new MockFS({
       ".pinstore": { mtime: 0, content: uri.toString() + "\n" },
     });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -64,7 +64,7 @@ describe("PinStore", () => {
 
   it("handles multiple pin/unpin operations", async () => {
     const fs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -90,7 +90,7 @@ describe("PinStore", () => {
     const fs = new MockFS({
       ".pinstore": { mtime: 0, content: "scratch:/a.txt\n\n\nscratch:/b.txt\n" },
     });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -99,7 +99,7 @@ describe("PinStore", () => {
 
   it("handles pinning the same item multiple times", async () => {
     const fs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -113,7 +113,7 @@ describe("PinStore", () => {
 
   it("handles unpinning non-existent item", async () => {
     const fs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 
@@ -127,7 +127,7 @@ describe("PinStore", () => {
     const fs = new MockFS({
       ".pinstore": { mtime: 0, content: "scratch:/test.txt\n" },
     });
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     let eventFired = false;
     store.onDidLoad(() => {
@@ -146,7 +146,7 @@ describe("PinStore", () => {
       return []; // Empty array simulates empty file
     };
 
-    const store = new PinStore(Uri.parse("scratch:/.pinstore"), fs);
+    const store = new PinStore(fs);
 
     await new Promise(resolve => store.onDidLoad(() => resolve(undefined)));
 

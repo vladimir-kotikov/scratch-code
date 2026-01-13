@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { ScratchExtension } from "./extension";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { registerTool, ScratchLmToolkit } from "./providers/lm";
+import { PinStore } from "./providers/pinStore";
 import { ScratchTreeProvider, SortOrder } from "./providers/tree";
 import { strip } from "./util/text";
 import { uriPath } from "./util/uri";
@@ -32,14 +33,17 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const fileSystemProvider = new ScratchFileSystemProvider(scratchDir);
+  const pinStore = new PinStore(fileSystemProvider);
   const treeDataProvider = new ScratchTreeProvider(
     fileSystemProvider,
+    pinStore,
     context.globalState.get("sortOrder", SortOrder.MostRecent),
   );
 
   const extension = new ScratchExtension(
     fileSystemProvider,
     treeDataProvider,
+    pinStore,
     context.globalStorageUri,
     context.globalState,
   );
@@ -79,10 +83,10 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     registerTool("rename_scratch", lmToolset.renameScratch, {
       invocationMessage: ({ oldUri, newUri }) =>
-        `Moving ${oldUri} to ${strip(uriPath(newUri), ["/"])}`,
+        `Moving ${oldUri} to ${strip(uriPath(newUri), "/")}`,
       confirmationMessage: ({ oldUri, newUri }) => ({
         title: "Move/rename scratch?",
-        message: `Move/rename ${oldUri} -> ${strip(uriPath(newUri), ["/"])}.`,
+        message: `Move/rename ${oldUri} -> ${strip(uriPath(newUri), "/")}.`,
       }),
     }),
     extension,

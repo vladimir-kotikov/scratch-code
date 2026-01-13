@@ -4,8 +4,15 @@ import * as vscode from "vscode";
 import { Uri } from "vscode";
 import { newScratchPicker } from "./newScratch";
 import { isFileExistsError, isNotEmptyDirectory, ScratchFileSystemProvider } from "./providers/fs";
+import { PinStore } from "./providers/pinStore";
 import { SearchIndexProvider } from "./providers/search";
-import { Scratch, ScratchFolder, ScratchTreeProvider, SortOrderLength } from "./providers/tree";
+import {
+  ScratchFile,
+  ScratchFolder,
+  ScratchNode,
+  ScratchTreeProvider,
+  SortOrderLength,
+} from "./providers/tree";
 import { DisposableContainer } from "./util/containers";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
@@ -15,6 +22,13 @@ import { isUserCancelled, PickerItemButton } from "./util/prompt";
 import { splitLines } from "./util/text";
 
 const DEBUG = process.env.SCRATCHES_DEBUG === "1";
+
+const toQuickPickItem = (scratch: ScratchFile): prompt.PickerItem<{ uri: Uri }> => ({
+  label: path.basename(scratch.uri.path),
+  description: scratch.isPinned ? "pinned" : undefined,
+  iconPath: vscode.ThemeIcon.File,
+  uri: scratch.uri,
+});
 
 const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
   str === undefined || str.trim() === "";
@@ -69,9 +83,9 @@ class IndexStatusBar {
 
 export class ScratchExtension extends DisposableContainer {
   private readonly index: SearchIndexProvider;
-  private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
+  private readonly treeView: vscode.TreeView<ScratchNode>;
 
-  public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
+  public scratchesDragAndDropController!: vscode.TreeDragAndDropController<ScratchFile>;
 
   private readonly pinQuickPickItemButton: PickerItemButton<{ uri: Uri }> = {
     tooltip: "Pin scratch",
@@ -95,6 +109,7 @@ export class ScratchExtension extends DisposableContainer {
   constructor(
     private readonly fileSystemProvider: ScratchFileSystemProvider,
     private readonly treeDataProvider: ScratchTreeProvider,
+    private readonly pinStore: PinStore,
     private readonly storageDir: vscode.Uri,
     private readonly globalState: vscode.Memento,
   ) {
@@ -135,7 +150,7 @@ export class ScratchExtension extends DisposableContainer {
     this.disposables.push(
       this.index.onDidLoad(() => {
         this.indexStatusBar.setStatus(IndexStatus.Ready).setSize(this.index.size());
-        prompt.info(`Index ready, ${this.index.documentCount()} documents in index`);
+        // Status bar update is sufficient, no need for intrusive notifications
       }),
       this.index.onLoadError(err => {
         this.index.reset();
@@ -148,9 +163,9 @@ export class ScratchExtension extends DisposableContainer {
   private getQuickPickItems = (): Promise<
     Array<prompt.PickerItem<{ uri: Uri }> | prompt.Separator>
   > =>
-    this.treeDataProvider.getFlatTree(this.treeDataProvider.sortOrder).then(
+    this.treeDataProvider.getAll().then(
       map(scratch => ({
-        ...scratch.toQuickPickItem(),
+        ...toQuickPickItem(scratch),
         buttons: scratch.isPinned ? [this.unpinQuickPickItemButton] : [this.pinQuickPickItemButton],
       })),
     );
@@ -176,8 +191,11 @@ export class ScratchExtension extends DisposableContainer {
 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private handleDrag = ([scratch, ..._]: Scratch[], dataTransfer: vscode.DataTransfer) => {
+  private handleDrag = (
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    [scratch, ..._]: readonly ScratchNode[],
+    dataTransfer: vscode.DataTransfer,
+  ) => {
     // TODO: Dragging folders is not yet supported
     if (scratch instanceof ScratchFolder) return;
     dataTransfer.set("text/uri-list", new vscode.DataTransferItem(scratch.uri.toString()));
@@ -222,10 +240,7 @@ export class ScratchExtension extends DisposableContainer {
   };
 
   // TODO: Test dropping plain text
-  private handleDrop = (
-    target: Scratch | ScratchFolder | undefined,
-    dataTransfer: vscode.DataTransfer,
-  ) => {
+  private handleDrop = (target: ScratchNode | undefined, dataTransfer: vscode.DataTransfer) => {
     const parent =
       target === undefined
         ? ScratchFileSystemProvider.ROOT
@@ -284,7 +299,7 @@ export class ScratchExtension extends DisposableContainer {
       .readFile(uri)
       .then(content => this.createScratch(path.basename(uri.path), content, parent));
 
-  newScratch = (parent?: ScratchFolder | Scratch) =>
+  newScratch = (parent?: ScratchNode) =>
     // TODO: Reveal the created scratch in the tree view
     parent === undefined
       ? newScratchPicker(this.createScratch)
@@ -299,7 +314,7 @@ export class ScratchExtension extends DisposableContainer {
             : Uri.joinPath(parent.uri, "../"),
         );
 
-  newFolder = (parent?: ScratchFolder | Scratch) => {
+  newFolder = (parent?: ScratchNode) => {
     const parentUri =
       parent === undefined
         ? ScratchFileSystemProvider.ROOT
@@ -364,7 +379,7 @@ export class ScratchExtension extends DisposableContainer {
     });
   };
 
-  rename = async (scratch?: Scratch | Uri, to?: Uri) => {
+  rename = async (scratch?: ScratchFile | Uri, to?: Uri) => {
     const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? editor.getCurrentScratchUri();
     if (from === undefined) return;
 
@@ -390,7 +405,7 @@ export class ScratchExtension extends DisposableContainer {
       .then(pass(), whenError(isUserCancelled, pass()));
   };
 
-  delete = (item?: Scratch | ScratchFolder | { uri: "${selectedItem}" }) => {
+  delete = (item?: ScratchNode | { uri: "${selectedItem}" }) => {
     // vscode doesn't pass the current item when invoked via keybinding,
     // so we pass a placeholder as defined in package.json and handle it here
     const uri = item?.uri === "${selectedItem}" ? this.treeView.selection[0]?.uri : item?.uri;
@@ -422,13 +437,13 @@ export class ScratchExtension extends DisposableContainer {
   openDirectory = () =>
     vscode.commands.executeCommand("revealFileInOS", this.fileSystemProvider.scratchDir);
 
-  pinScratch = async (scratch?: Scratch | Uri) =>
-    this.treeDataProvider.pinScratch(
-      scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri()),
-    );
+  pinScratch = async (scratch?: ScratchFile | Uri) => {
+    const uri = scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri());
+    return uri && this.pinStore.pin(uri);
+  };
 
-  unpinScratch = async (scratch?: Scratch | Uri) =>
-    this.treeDataProvider.unpinScratch(
-      scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri()),
-    );
+  unpinScratch = async (scratch?: ScratchFile | Uri) => {
+    const uri = scratch instanceof Uri ? scratch : (scratch?.uri ?? editor.getCurrentScratchUri());
+    return uri && this.pinStore.unpin(uri);
+  };
 }

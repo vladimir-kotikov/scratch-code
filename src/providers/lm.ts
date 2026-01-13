@@ -44,11 +44,11 @@ export class ScratchLmToolkit extends DisposableContainer {
   listScratches = (options?: ListScratchesOptions) => {
     const pattern = options?.filter ? new Minimatch(options.filter) : null;
     return this.treeProvider
-      .getFlatTree()
+      .getAll()
       .then(map(prop("uri")))
       .then(uris => {
-        uris = pattern ? uris.filter(u => pattern.match(u.path)) : uris;
-        return uris.map(u => strip(uriPath(u), ["/"])).join("\n");
+        uris = pattern ? uris.filter((u: Uri) => pattern.match(u.path)) : uris;
+        return uris.map((u: Uri) => strip(uriPath(u), "/")).join("\n");
       });
   };
 

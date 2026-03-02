@@ -66,7 +66,7 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
   ): Disposable => {
     const watchUri = uri ?? ScratchFileSystemProvider.ROOT;
     const watchPath = toFilesystemUri(this.scratchDir, watchUri).fsPath;
-    const baseDirName = fs.statSync(watchPath).isDirectory() ? path.basename(watchPath) : null;
+    const baseDirName = fs.statSync(watchPath).isDirectory() ? path.basename(watchPath) : undefined;
 
     const fireEvents = batch((events: FileChangeEvent[]) => {
       this._onDidChangeFile.fire(events);

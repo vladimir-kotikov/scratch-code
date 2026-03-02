@@ -42,7 +42,7 @@ export class ScratchLmToolkit extends DisposableContainer {
   }
 
   listScratches = (options?: ListScratchesOptions) => {
-    const pattern = options?.filter ? new Minimatch(options.filter) : null;
+    const pattern = options?.filter ? new Minimatch(options.filter) : undefined;
     return this.treeProvider
       .getFlatTree()
       .then(map(prop("uri")))

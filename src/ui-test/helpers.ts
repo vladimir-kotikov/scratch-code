@@ -237,7 +237,7 @@ export const getDialogWithText = (match: string | RegExp) =>
   );
 
 export const closeAllEditors = async () => {
-  const getDialog = () => new ModalDialog().wait(100).catch(() => null);
+  const getDialog = () => new ModalDialog().wait(100).catch(() => undefined);
   const closeEditors = async () => {
     try {
       await new EditorView().closeAllEditors();

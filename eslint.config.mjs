@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import unicorn from "eslint-plugin-unicorn";
 import { defineConfig } from "eslint/config";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -11,4 +12,10 @@ export default defineConfig([
     languageOptions: { globals: globals.nodeBuiltin },
   },
   tseslint.configs.recommended,
+  {
+    plugins: { unicorn },
+    rules: {
+      "unicorn/no-null": "error",
+    },
+  },
 ]);

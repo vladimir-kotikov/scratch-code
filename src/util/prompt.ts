@@ -42,7 +42,7 @@ export const filename = (title: string, value: string = "") =>
         ? "Filename cannot be empty"
         : !/^[^:*?"<>|]+$/.test(filename)
           ? "Filename cannot contain special characters"
-          : null,
+          : undefined,
   });
 
 export const confirm = (message: string) =>

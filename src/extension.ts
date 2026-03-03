@@ -72,21 +72,20 @@ export class ScratchExtension extends DisposableContainer {
   private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
 
   public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
-
-  private readonly pinQuickPickItemButton: PickerItemButton<{ uri: Uri }> = {
+  private readonly pinQuickPickItemButton: PickerItemButton = {
     tooltip: "Pin scratch",
     iconPath: new vscode.ThemeIcon("pin"),
     onClick: ({ item, setItems }) => {
-      this.pinScratch(item.uri);
+      this.pinScratch(item.resourceUri);
       setItems(this.getQuickPickItems);
     },
   };
 
-  private readonly unpinQuickPickItemButton: PickerItemButton<{ uri: Uri }> = {
+  private readonly unpinQuickPickItemButton: PickerItemButton = {
     tooltip: "Unpin scratch",
     iconPath: new vscode.ThemeIcon("pinned"),
     onClick: ({ item, setItems }) => {
-      this.unpinScratch(item.uri);
+      this.unpinScratch(item.resourceUri);
       setItems(this.getQuickPickItems);
     },
   };

@@ -61,11 +61,11 @@ export class Scratch {
     iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
   });
 
-  toQuickPickItem = (): PickerItem<{ uri: Uri }> => ({
+  toQuickPickItem = (): PickerItem => ({
     label: basename(this.uri.path),
     description: this.uri.path.substring(1),
     iconPath: this.isPinned ? new ThemeIcon("pinned") : ThemeIcon.File,
-    uri: this.uri,
+    resourceUri: this.uri,
   });
 }
 

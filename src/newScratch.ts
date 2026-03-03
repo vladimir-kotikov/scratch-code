@@ -9,8 +9,7 @@ import { isUserCancelled, PickerCallback, PickerItem } from "./util/prompt";
 import * as vscode from "vscode";
 import { isEmpty, splitLines } from "./util/text";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-const makeFilenameSuggestion = (label: string): PickerItem<{}> => ({
+const makeFilenameSuggestion = (label: string): PickerItem => ({
   label,
   description: "AI Suggested",
   iconPath: { id: "lightbulb-sparkle" },
@@ -52,22 +51,14 @@ const suggestFilenames = (doc?: TextDocument) => {
     .then(choices => choices ?? []);
 };
 
-const newScratchItem = (
-  label: string,
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  onPick: PickerCallback<{}>,
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-): PickerItem<{}> => ({
+const newScratchItem = (label: string, onPick: PickerCallback): PickerItem => ({
   iconPath: { id: "plus" },
   alwaysShow: true,
   label,
   onPick,
 });
 
-const suggestFilenamesButton = (
-  insertSuggestionsAt: number = 0,
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-): prompt.PickerButton<{}> => ({
+const suggestFilenamesButton = (insertSuggestionsAt: number = 0): prompt.PickerButton => ({
   tooltip: "Generate Filename Suggestions",
   iconPath: { id: "lightbulb-sparkle" },
   onClick: ({ items, setItems, setValue }) =>
@@ -104,8 +95,8 @@ export const newScratchPicker = (createScratch: NewScratchPickerCallback) => {
       : undefined;
 
   let suggestionsIndex = 0;
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  const choices: prompt.PickerItem<{}>[] = [
+
+  const choices: prompt.PickerItem[] = [
     newScratchItem("Create Blank Scratch", ({ item, value: filename }) => {
       createScratch(filename);
       return item;

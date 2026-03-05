@@ -42,14 +42,20 @@ export class ScratchLmToolkit extends DisposableContainer {
   }
 
   listScratches = (options?: ListScratchesOptions) => {
-    const pattern = options?.filter ? new Minimatch(options.filter) : undefined;
+    const filter = options?.filter;
+    const isGlob = filter && /[*?{[]/.test(filter);
+    const pattern = isGlob ? new Minimatch(filter!) : undefined;
+    const prefix = !isGlob && filter ? strip(filter, ["/"]).replace(/\/$/, "") : undefined;
     return this.treeProvider
       .getFlatTree()
       .then(map(prop("uri")))
-      .then(uris => {
-        uris = pattern ? uris.filter(u => pattern.match(u.path)) : uris;
-        return uris.map(u => strip(uriPath(u), ["/"])).join("\n");
-      });
+      .then(uris =>
+        uris
+          .map(uri => strip(uriPath(uri), ["/"]))
+          .filter(uri => pattern?.match(uri) ?? true)
+          .filter(uri => (prefix ? uri.startsWith(prefix) : true))
+          .join("\n"),
+      );
   };
 
   readScratch = ({ uri, lineFrom, lineTo }: ReadScratchOptions) =>

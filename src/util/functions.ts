@@ -32,3 +32,34 @@ export const batch = <T>(
 
   return batched;
 };
+
+export const debounce = <Args extends unknown[], R>(
+  fn: (...args: Args) => R,
+  delay: number,
+): ((...args: Args) => Promise<Awaited<R>>) & { cancel: () => void } => {
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  const debounced = (...args: Args): Promise<Awaited<R>> => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+
+    // Create promise that resolves when debounce completes
+    return new Promise<Awaited<R>>(resolve => {
+      timeoutId = setTimeout(() => {
+        timeoutId = undefined;
+        const fnResult = fn(...args);
+        resolve(fnResult as Awaited<R>);
+      }, delay);
+    });
+  };
+
+  debounced.cancel = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+
+  return debounced;
+};

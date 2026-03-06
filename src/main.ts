@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { ScratchExtension } from "./extension";
 import { ScratchFileSystemProvider } from "./providers/fs";
 import { registerTool, ScratchLmToolkit } from "./providers/lm";
+import { SearchIndexProvider } from "./providers/search";
 import { ScratchTreeProvider, SortOrder } from "./providers/tree";
 import { strip } from "./util/text";
 import { uriPath } from "./util/uri";
@@ -30,21 +31,23 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }
   });
+  vscode.workspace.fs.createDirectory(context.globalStorageUri);
 
   const fileSystemProvider = new ScratchFileSystemProvider(scratchDir);
   const treeDataProvider = new ScratchTreeProvider(
     fileSystemProvider,
     context.globalState.get("sortOrder", SortOrder.MostRecent),
   );
+  const searchIndex = new SearchIndexProvider(scratchDir.fsPath);
 
   const extension = new ScratchExtension(
     fileSystemProvider,
     treeDataProvider,
-    context.globalStorageUri,
+    searchIndex,
     context.globalState,
   );
 
-  const lmToolset = new ScratchLmToolkit(fileSystemProvider, treeDataProvider);
+  const lmToolset = new ScratchLmToolkit(fileSystemProvider, treeDataProvider, searchIndex);
 
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(scratchUriScheme, fileSystemProvider),
@@ -53,7 +56,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.delete", extension.delete),
     vscode.commands.registerCommand("scratches.quickOpen", extension.quickPick),
     vscode.commands.registerCommand("scratches.search.quickSearch", () => extension.quickPick("?")),
-    vscode.commands.registerCommand("scratches.search.resetIndex", extension.resetIndex),
     vscode.commands.registerCommand("scratches.renameScratch", extension.rename),
     vscode.commands.registerCommand("scratches.openDirectory", extension.openDirectory),
     vscode.commands.registerCommand("scratches.toggleSort", extension.toggleSortOrder),
@@ -84,6 +86,10 @@ export function activate(context: vscode.ExtensionContext) {
         title: "Move/rename scratch?",
         message: `Move/rename ${oldUri} -> ${strip(uriPath(newUri), ["/"])}.`,
       }),
+    }),
+    registerTool("search_scratches", lmToolset.searchScratches, {
+      invocationMessage: ({ query, filter }) =>
+        `Searching for "${query}"${filter ? ` in ${filter}` : ""}`,
     }),
     extension,
     treeDataProvider,

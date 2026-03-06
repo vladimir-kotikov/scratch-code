@@ -114,10 +114,27 @@ export const pick = (
 
   const setItems = (itemsFn: ProvidePickerItemsFn) => {
     picker.busy = true;
-    asPromise(itemsFn()).then(items => {
-      picker.items = items;
-      picker.busy = false;
-    });
+    asPromise(itemsFn())
+      .then(
+        items => {
+          picker.items = items;
+        },
+        err => {
+          picker.items = [
+            {
+              label: "Error loading items",
+              detail: String(err),
+              iconPath: new vscode.ThemeIcon("error"),
+              alwaysShow: true,
+              onPick: () => undefined,
+            } as PickerItem,
+          ];
+        },
+      )
+      .finally(() => {
+        // Ensure picker is not left in a busy state in case of error
+        picker.busy = false;
+      });
   };
 
   const { promise, reject, resolve } = Promise.withResolvers<PickerItem>();

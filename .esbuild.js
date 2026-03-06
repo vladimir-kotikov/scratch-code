@@ -13,7 +13,7 @@ async function main() {
     sourcesContent: false,
     platform: "node",
     outfile: "dist/extension.js",
-    external: ["vscode"],
+    external: ["vscode", "@vscode/ripgrep"],
     logLevel: "warning",
     plugins: [
       /* add to the end of plugins array */
@@ -41,7 +41,7 @@ const esbuildProblemMatcherPlugin = {
     build.onEnd(result => {
       result.errors.forEach(({ text, location }) => {
         console.error(`✘ [ERROR] ${text}`);
-        if (location == null) return;
+        if (location == undefined) return;
         console.error(`    ${location.file}:${location.line}:${location.column}:`);
       });
       console.log("[watch] build finished");

@@ -49,11 +49,6 @@
         "category": "Scratches"
       },
       {
-        "command": "scratches.search.resetIndex",
-        "title": "Reset Search Index",
-        "category": "Scratches"
-      },
-      {
         "command": "scratches.renameScratch",
         "title": "Rename...",
         "category": "Scratches"
@@ -72,7 +67,7 @@
       },
       {
         "command": "scratches.openDirectory",
-        "title": "Open directory",
+        "title": "Open Directory",
         "category": "Scratches",
         "icon": "$(folder-opened)"
       },
@@ -222,6 +217,55 @@
             "newUri"
           ]
         }
+      },
+      {
+        "name": "search_scratches",
+        "displayName": "Search Scratches",
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "search_scratches",
+        "userDescription": "Searches across scratch file contents",
+        "modelDescription": "Searches across scratch file contents using text or regex patterns, returning matches with context lines.\nUse when user asks to find specific content, patterns, or references across scratches.\n\nParameters:\n- query (required): Search term or regex pattern\n- isRegex (optional): Treat query as regex (default: false)\n- caseSensitive (optional): Case-sensitive search (default: false)\n- filter (optional): Glob pattern to limit scope (e.g., \"projects/**/*.md\")\n- contextLines (optional): Lines before/after to include (default: 2)\n- maxResults (optional): Maximum matches to return (default: 100)\n\nExamples:\n- { query: \"authentication\" } → finds all occurrences with 2 lines context\n- { query: \"TODO|FIXME\", isRegex: true } → finds TODOs using regex\n- { query: \"function\", filter: \"**/*.ts\", contextLines: 0 } → finds in TypeScript files, no context\n\nReturns: JSON with matches array containing uri, path, line, column, matchText, lineContent, contextBefore, contextAfter.",
+        "tags": [
+          "scratches",
+          "search"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search term or regex pattern. Required."
+            },
+            "isRegex": {
+              "type": "boolean",
+              "description": "Whether to treat the query as a regex pattern. Default: false.",
+              "default": false
+            },
+            "caseSensitive": {
+              "type": "boolean",
+              "description": "Whether the search should be case-sensitive. Default: false.",
+              "default": false
+            },
+            "filter": {
+              "type": "string",
+              "description": "Glob pattern to limit search scope (e.g., \"**/*.md\" for markdown files, \"projects/**\" for projects directory)."
+            },
+            "contextLines": {
+              "type": "number",
+              "description": "Number of context lines to include before and after each match. Default: 2.",
+              "default": 2
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of matches to return. Default: 100.",
+              "default": 100
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
       }
     ],
     "configuration": {
@@ -330,27 +374,28 @@
     "prepare": "npx husky || true"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.10.1",
-    "@types/vscode": "^1.105.0",
+    "@types/node": "^25.3.3",
+    "@types/vscode": "^1.109.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.7.0",
-    "esbuild": "^0.27.2",
-    "eslint": "^9.39.1",
+    "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.3",
+    "eslint": "^10.0.2",
     "eslint-plugin-unicorn": "^63.0.0",
-    "globals": "^17.0.0",
+    "globals": "^17.4.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
-    "mocha": "^11.0.0",
-    "prettier": "^3.6.2",
+    "lint-staged": "^16.3.2",
+    "mocha": "^11.7.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0",
-    "vscode-extension-tester": "^8.19.0"
+    "typescript-eslint": "^8.56.1",
+    "vscode-extension-tester": "^8.22.1"
   },
   "dependencies": {
-    "minimatch": "^10.1.1",
-    "minisearch": "^7.2.0",
+    "@vscode/ripgrep": "^1.17.0",
+    "minimatch": "^10.2.4",
     "ts-pattern": "^5.9.0"
   },
   "prettier": {

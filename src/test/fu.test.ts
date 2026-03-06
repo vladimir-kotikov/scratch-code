@@ -78,7 +78,7 @@ describe("fu utilities", () => {
 
   describe("sort", () => {
     describe("byBoolValue", () => {
-      it("sorts false before true", () => {
+      it("sorts truthy values first (true before false)", () => {
         type Item = { name: string; active: boolean };
         const items: Item[] = [
           { name: "a", active: true },

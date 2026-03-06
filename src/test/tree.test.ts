@@ -10,6 +10,14 @@ import {
 } from "../providers/tree";
 import { MockFS } from "./mock/fs";
 
+const waitForTreeChange = (provider: ScratchTreeProvider) =>
+  new Promise<void>(resolve => {
+    const d = provider.onDidChangeTreeData(() => {
+      d.dispose();
+      resolve();
+    });
+  });
+
 describe("ScratchTreeProvider", () => {
   it("sorts by most recent mtime", async () => {
     const files = {
@@ -19,10 +27,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-
-    // Wait for pin store to load
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/c.txt", "/a.txt"]);
@@ -36,8 +41,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     provider.setSortOrder(SortOrder.Alphabetical);
     const children = await provider.getChildren();
     const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
@@ -52,8 +56,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     assert.deepEqual(names, ["/b.txt", "/a.txt"]);
@@ -66,8 +69,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     // Initial: MostRecent
     let children = await provider.getChildren();
     assert.deepEqual(
@@ -98,8 +100,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "scratch:/a.txt\n" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const names = children.map(s => s.uri.path);
     // Pinned items should appear first regardless of mtime
@@ -116,13 +117,11 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
     if (scratch instanceof Scratch) {
       provider.pinScratch(scratch.uri);
-      await new Promise(resolve => setTimeout(resolve, 10));
       const updatedChildren = await provider.getChildren();
       const pinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
       assert.ok(pinnedItem instanceof Scratch);
@@ -139,14 +138,12 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "scratch:/b.txt\n" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const scratch = children.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
     assert.ok(scratch instanceof Scratch);
     assert.strictEqual(scratch.isPinned, true);
     provider.unpinScratch(scratch.uri);
-    await new Promise(resolve => setTimeout(resolve, 10));
     const updatedChildren = await provider.getChildren();
     const unpinnedItem = updatedChildren.find(s => s instanceof Scratch && s.uri.path === "/b.txt");
     assert.ok(unpinnedItem instanceof Scratch);
@@ -161,8 +158,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "scratch:/a.txt\nscratch:/c.txt\n" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
     // Pinned items (c, a) sorted by mtime, then unpinned (b)
@@ -177,8 +173,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "scratch:/z.txt\nscratch:/m.txt\n" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     provider.setSortOrder(SortOrder.Alphabetical);
     const children = await provider.getChildren();
     const names = children.filter(s => s instanceof Scratch).map(s => s.uri.path);
@@ -214,8 +209,7 @@ describe("ScratchTreeProvider", () => {
   it("handles undefined uri in getItem", async () => {
     const files = { ".pinstore": { mtime: 0, content: "" } };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const scratch = provider.getItem(undefined);
     assert.strictEqual(scratch, undefined);
   });
@@ -229,8 +223,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     // Should show both folders and files at root
     const labels = children.map(n =>
@@ -260,8 +253,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const labels = children.map(n =>
       n instanceof Object && "toTreeItem" in n ? n.toTreeItem().label : undefined,
@@ -287,8 +279,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const rootFolder = children.find(
       n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "root",
@@ -317,8 +308,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const parent = children.find(
       n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "parent",
@@ -341,8 +331,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     const top = children.find(
       n => n instanceof Object && "toTreeItem" in n && n.toTreeItem().label === "top",
@@ -385,8 +374,7 @@ describe("ScratchTreeProvider", () => {
       ".pinstore": { mtime: 0, content: "scratch:/b.txt\n" },
     };
     const provider = new ScratchTreeProvider(new MockFS(files));
-    await new Promise(resolve => setTimeout(resolve, 10));
-
+    await waitForTreeChange(provider);
     const children = await provider.getChildren();
     // Assert that all folders come before any files
     const firstFileIndex = children.findIndex(n => n instanceof Scratch);

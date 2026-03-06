@@ -9,6 +9,7 @@ import { Scratch, ScratchFolder, ScratchTreeProvider, SortOrderLength } from "./
 import { DisposableContainer } from "./util/containers";
 import * as editor from "./util/editor";
 import { map, pass } from "./util/fu";
+import { debounce } from "./util/functions";
 import { asPromise, whenError } from "./util/promises";
 import * as prompt from "./util/prompt";
 import { isUserCancelled, PickerItemButton } from "./util/prompt";
@@ -23,53 +24,9 @@ const isEmptyOrUndefined = (str: string | undefined): str is undefined | "" =>
 // - delay updating the index in watcher events until the index is loaded/populated
 // - check the index validity when loading from disk and prune missing entries
 
-enum IndexStatus {
-  Unknown = "Unknown",
-  Loading = "Loading...",
-  Ready = "Ready",
-  Error = "Error",
-}
-
-class IndexStatusBar {
-  private statusItem: vscode.StatusBarItem;
-  private status: IndexStatus = IndexStatus.Unknown;
-  private error?: string;
-  private size?: number;
-
-  constructor(private indexPath: string) {
-    this.statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    this.update();
-    this.statusItem.show();
-  }
-
-  setStatus = (status: IndexStatus.Loading | IndexStatus.Ready | IndexStatus.Unknown) => {
-    this.status = status;
-    this.error = undefined;
-    return this.update();
-  };
-
-  setError = (error: string) => {
-    this.status = IndexStatus.Error;
-    this.error = error;
-    return this.update();
-  };
-
-  setSize = (size: number) => {
-    this.size = size;
-    return this.update();
-  };
-
-  private update = () => {
-    const indexSize = this.size !== undefined ? (this.size / 1024).toFixed(1) + " Kb" : "-";
-    this.statusItem.tooltip = `Location: ${this.indexPath}${this.error ? "\nError: " + this.error : ""}`;
-    this.statusItem.text = `Index: ${this.status}, Size: ${indexSize}`;
-    return this;
-  };
-}
-
 export class ScratchExtension extends DisposableContainer {
-  private readonly index: SearchIndexProvider;
   private readonly treeView: vscode.TreeView<Scratch | ScratchFolder>;
+  private readonly debouncedSearch: (query: string) => Promise<prompt.PickerItem[]>;
 
   public scratchesDragAndDropController!: vscode.TreeDragAndDropController<Scratch>;
   private readonly pinQuickPickItemButton: PickerItemButton = {
@@ -89,19 +46,17 @@ export class ScratchExtension extends DisposableContainer {
       setItems(this.getQuickPickItems);
     },
   };
-  private indexStatusBar: IndexStatusBar;
 
   constructor(
     private readonly fileSystemProvider: ScratchFileSystemProvider,
     private readonly treeDataProvider: ScratchTreeProvider,
-    private readonly storageDir: vscode.Uri,
+    private readonly searchProvider: SearchIndexProvider,
     private readonly globalState: vscode.Memento,
   ) {
     super();
 
-    [storageDir].forEach(vscode.workspace.fs.createDirectory);
-
-    this.indexStatusBar = new IndexStatusBar(this.fileSystemProvider.scratchDir.fsPath);
+    // Create debounced search with 300ms delay
+    this.debouncedSearch = debounce(this.getQuickSearchItems, 300);
 
     this.disposeLater(
       // start watcher so other components can rely on it being active
@@ -123,30 +78,9 @@ export class ScratchExtension extends DisposableContainer {
         dragAndDropController: this.scratchesDragAndDropController,
       }),
     );
-
-    this.index = this.disposeLater(
-      new SearchIndexProvider(
-        this.fileSystemProvider,
-        Uri.joinPath(this.storageDir, "searchIndex.json"),
-      ),
-    );
-    this.index.load();
-    this.disposables.push(
-      this.index.onDidLoad(() => {
-        this.indexStatusBar.setStatus(IndexStatus.Ready).setSize(this.index.size());
-        prompt.info(`Index ready, ${this.index.documentCount()} documents in index`);
-      }),
-      this.index.onLoadError(err => {
-        this.index.reset();
-        this.indexStatusBar.setError(err.toString());
-        prompt.warn(`Index corrupted (${err}). Rebuilding...`);
-      }),
-    );
   }
 
-  private getQuickPickItems = (): Promise<
-    Array<prompt.PickerItem<{ uri: Uri }> | prompt.Separator>
-  > =>
+  private getQuickPickItems = (): Promise<Array<prompt.PickerItem>> =>
     this.treeDataProvider.getFlatTree(this.treeDataProvider.sortOrder).then(
       map(scratch => ({
         ...scratch.toQuickPickItem(),
@@ -154,24 +88,37 @@ export class ScratchExtension extends DisposableContainer {
       })),
     );
 
-  private getQuickSearchItems = (value: string = ""): Array<prompt.PickerItem<{ uri: Uri }>> =>
-    value === ""
-      ? [
+  private getQuickSearchItems = (query: string = ""): Promise<prompt.PickerItem[]> =>
+    query === ""
+      ? Promise.resolve([
           {
             label: "Type to search...",
             alwaysShow: true,
-            uri: undefined as unknown as Uri, // Placeholder URI
             // Return undefined to prevent picker from closing
             onPick: () => undefined,
           },
-        ]
-      : this.index.search(value).map(result => ({
-          label: result.path,
-          detail: result.textMatch,
-          iconPath: vscode.ThemeIcon.File,
-          alwaysShow: true,
-          uri: Uri.joinPath(ScratchFileSystemProvider.ROOT, result.path),
-        }));
+        ])
+      : this.searchProvider
+          .search({ query, contextLines: 0 })
+          .then(
+            map(match => ({
+              label: "",
+              alwaysShow: true,
+              resourceUri: Uri.parse(match.uri),
+              description: `Line ${match.line}`,
+              detail: match.content,
+            })),
+          )
+          .catch(error => {
+            console.error("Search failed:", error);
+            return [
+              {
+                label: `Search error: ${error.message}`,
+                alwaysShow: true,
+                onPick: () => undefined,
+              },
+            ];
+          });
 
   // There's only one item is allowed to be selected so
   // dragging always involves a single scratch
@@ -322,7 +269,7 @@ export class ScratchExtension extends DisposableContainer {
 
   quickPick = (initialValue: string = "") =>
     prompt
-      .pick<{ uri: Uri }>(
+      .pick(
         initialValue === "?"
           ? () => this.getQuickSearchItems(initialValue.substring(1))
           : this.getQuickPickItems,
@@ -330,38 +277,20 @@ export class ScratchExtension extends DisposableContainer {
           onValueChange: ({ value, setItems }) => {
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             value.startsWith("?")
-              ? setItems(() => this.getQuickSearchItems(value.substring(1)))
+              ? setItems(() => this.debouncedSearch(value.substring(1)))
               : value === ""
                 ? setItems(this.getQuickPickItems)
                 : undefined;
           },
           title: "Search scratches",
           placeholder: "Type to search scratches (prefix with ? for full-text search)",
-          buttons: [
-            {
-              tooltip: "Refresh index",
-              iconPath: new vscode.ThemeIcon("refresh"),
-              onClick: ({ value, setItems }) =>
-                this.resetIndex().then(() => setItems(() => this.getQuickSearchItems(value))),
-            },
-          ],
           initialValue,
           matchOnDescription: true,
           matchOnDetail: true,
           ignoreFocusOut: DEBUG,
         },
       )
-      .then(item => editor.openDocument(item.uri), whenError(isUserCancelled, pass()));
-
-  resetIndex = async () => {
-    this.indexStatusBar.setStatus(IndexStatus.Loading).setSize(0);
-    return this.index.reset().then(() => {
-      this.indexStatusBar.setStatus(IndexStatus.Ready).setSize(this.index.size());
-      return prompt.info(
-        "Scratches: search index rebuilt, documents: " + this.index.documentCount(),
-      );
-    });
-  };
+      .then(item => editor.openDocument(item.resourceUri), whenError(isUserCancelled, pass()));
 
   rename = async (scratch?: Scratch | Uri, to?: Uri) => {
     const from = (scratch instanceof Uri ? scratch : scratch?.uri) ?? editor.getCurrentScratchUri();

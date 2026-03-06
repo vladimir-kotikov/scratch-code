@@ -1,7 +1,7 @@
 .PHONY: lint unit
 
 lint:
-	@npm run fmt
+	@npm run fmt && npx tsc --noEmit
 
 unit:
 	@npm run test:unit

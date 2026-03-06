@@ -1,11 +1,12 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { rgPath } = require("@vscode/ripgrep");
 import * as child_process from "child_process";
 import path from "node:path";
 import { match, P } from "ts-pattern";
-import { Uri } from "vscode";
+import { env, Uri } from "vscode";
 import { DisposableContainer } from "../util/containers";
 import { normalizeFilter, toScratchUri } from "../util/uri";
+
+const rgBinary = process.platform === "win32" ? "rg.exe" : "rg";
+const rgPath = path.join(env.appRoot, "node_modules/@vscode/ripgrep/bin", rgBinary);
 
 export type SearchOptions = {
   query: string;

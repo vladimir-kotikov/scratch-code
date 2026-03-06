@@ -394,7 +394,6 @@
     "vscode-extension-tester": "^8.22.1"
   },
   "dependencies": {
-    "@vscode/ripgrep": "^1.17.0",
     "minimatch": "^10.2.4",
     "ts-pattern": "^5.9.0"
   },

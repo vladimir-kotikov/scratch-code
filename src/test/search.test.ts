@@ -5,6 +5,7 @@ import * as os from "os";
 import * as path from "path";
 import { Uri } from "vscode";
 import {
+  normalizeGlob,
   processRipgrepMatch,
   RgState,
   SearchIndexProvider,
@@ -87,6 +88,31 @@ const summaryLine = () =>
 
 const feed = (lines: string[], contextLines = 2): RgState =>
   lines.reduce((s, l) => processRipgrepMatch(l, s, contextLines, ROOT_URI), mkState());
+
+// ---------------------------------------------------------------------------
+// normalizeGlob
+// ---------------------------------------------------------------------------
+
+describe("normalizeGlob", () => {
+  [
+    // already well-formed — must pass through unchanged
+    { input: "**/*.md", expected: "**/*.md" },
+    { input: "**/projects/**", expected: "**/projects/**" },
+    { input: "**/marketing-event-service/**", expected: "**/marketing-event-service/**" },
+    // bare directory glob — must receive **/ prefix
+    { input: "projects/**", expected: "**/projects/**" },
+    { input: "projects/**/*.md", expected: "**/projects/**/*.md" },
+    // leading slash stripped, then **/ prepended
+    { input: "/projects/**", expected: "**/projects/**" },
+    { input: "//projects/**", expected: "**/projects/**" },
+    // extension-only glob — must receive **/ prefix
+    { input: "*.md", expected: "**/*.md" },
+  ].forEach(({ input, expected }) => {
+    it(`normalizes ${JSON.stringify(input)} → ${JSON.stringify(expected)}`, () => {
+      assert.strictEqual(normalizeGlob(input), expected);
+    });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // processRipgrepMatch – unit tests (no I/O)

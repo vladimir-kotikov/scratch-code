@@ -168,6 +168,14 @@ export const processRipgrepMatch = (
     .exhaustive();
 };
 
+// Ripgrep matches --glob patterns against absolute paths, so a user-supplied
+// glob like "projects/**" never matches. Strip any leading "/" (scratch-root-
+// relative) and prepend "**/" so that directory-scoped globs work as expected.
+export const normalizeGlob = (glob: string): string => {
+  const stripped = glob.replace(/^\/+/, "");
+  return stripped.startsWith("**/") ? stripped : `**/${stripped}`;
+};
+
 export class SearchIndexProvider extends DisposableContainer {
   constructor(private readonly rootPath: string) {
     super();
@@ -190,7 +198,7 @@ export class SearchIndexProvider extends DisposableContainer {
       caseSensitive ? "--case-sensitive" : "--ignore-case",
       ...(isRegex ? [] : ["--fixed-strings"]),
       ...(contextLines > 0 ? ["-C", contextLines.toString()] : []),
-      ...(glob ? ["--glob", glob] : []),
+      ...(glob ? ["--glob", normalizeGlob(glob)] : []),
       query,
       this.rootPath,
     ];

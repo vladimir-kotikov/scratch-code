@@ -1,13 +1,9 @@
 import { strict as assert } from "assert";
-import { afterEach, describe, it } from "mocha";
+import { describe, it } from "mocha";
 import { debounce } from "../util/functions";
 
 describe("debounce", () => {
   const delay = 50;
-
-  afterEach(() => {
-    // Allow any pending timers to settle between tests
-  });
 
   [
     { input: 5, expected: 10 },

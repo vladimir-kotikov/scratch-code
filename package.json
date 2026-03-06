@@ -109,7 +109,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "list_scratches",
         "userDescription": "Lists available scratches",
-        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered by a glob pattern.\nUse when user asks to see available scratches or find files by pattern.\n\nParameters:\n- filter (optional): Glob pattern (e.g., \"**/*.ts\" for TypeScript, \"**/notes/**\" for directory)\n\nExamples:\n- {} → \"scratch:///notes.md\\nscratch:///todo.txt\"\n- { filter: \"**/*.ts\" } → \"scratch:///code/example.ts\"\n\nReturns: Newline-separated URIs or \"No scratches found.\"",
+        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered.\nUse when user asks to see available scratches or find files by pattern or directory.\n\nParameters:\n- filter (optional): A glob pattern OR a plain path prefix.\n  - Glob pattern: any string containing *, ?, {, or [ (e.g. \"**/*.ts\", \"projects/foo/**\")\n  - Path prefix: a directory path with or without trailing slash (e.g. \"projects/foo/\", \"projects/foo\")\n  Both forms match against the path without a leading slash.\n\nExamples:\n- {} → lists all scratches\n- { filter: \"projects/my-app/\" } → all scratches under projects/my-app/\n- { filter: \"projects/my-app\" } → same as above, trailing slash is optional\n- { filter: \"**/*.ts\" } → all TypeScript files recursively\n- { filter: \"projects/foo/**\" } → all files under projects/foo/ via glob\n- { filter: \"*.md\" } → only markdown files at root level\n\nReturns: Newline-separated paths (without leading slash) or empty string if none match.",
         "tags": [
           "scratches",
           "memory"

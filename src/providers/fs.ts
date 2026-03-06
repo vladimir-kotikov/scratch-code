@@ -42,19 +42,6 @@ export const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === Fi
 
 export const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
 
-export const toScratchUri = (
-  uri: Uri,
-  scratchesRoot: Uri,
-  { fragment = undefined }: { fragment?: string } = {},
-): Uri => {
-  const relativePath = path.relative(scratchesRoot.fsPath, uri.fsPath);
-  if (relativePath.startsWith("..")) {
-    throw new Error(`URI is outside of scratch directory: ${uri.toString()}`);
-  }
-  const result = Uri.joinPath(ScratchFileSystemProvider.ROOT, relativePath);
-  return fragment ? result.with({ fragment }) : result;
-};
-
 export class ScratchFileSystemProvider implements FileSystemProvider, Disposable {
   static readonly SCHEME = SCHEME;
   static readonly ROOT = Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/`);

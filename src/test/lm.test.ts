@@ -68,10 +68,10 @@ describe("ScratchLmToolkit", () => {
         excluded: ["scratch.md"],
       },
       {
-        label: "single star extension at root (*.md)",
+        label: "single star extension (*.md) matches all .md files recursively",
         filter: "*.md",
-        included: ["scratch.md"],
-        excluded: ["projects/foo/README.md", "projects/bar/notes.md", "projects/foo/app.ts"],
+        included: ["scratch.md", "projects/foo/README.md", "projects/bar/notes.md"],
+        excluded: ["projects/foo/app.ts"],
       },
       {
         label: "recursive extension (**/*.md)",
@@ -121,6 +121,25 @@ describe("ScratchLmToolkit", () => {
         filter: "projects/",
         included: ["projects/foo/README.md", "projects/foo/app.ts", "projects/bar/notes.md"],
         excluded: ["scratch.md"],
+      },
+      // scratch:/// URI scheme variants
+      {
+        label: "scratch:/// URI as plain prefix (scratch:///projects/foo)",
+        filter: "scratch:///projects/foo",
+        included: ["projects/foo/README.md", "projects/foo/app.ts"],
+        excluded: ["scratch.md", "projects/bar/notes.md"],
+      },
+      {
+        label: "scratch:/// URI as glob (scratch:///projects/foo/**)",
+        filter: "scratch:///projects/foo/**",
+        included: ["projects/foo/README.md", "projects/foo/app.ts"],
+        excluded: ["scratch.md", "projects/bar/notes.md"],
+      },
+      {
+        label: "scratch:/// URI as recursive extension glob (scratch:///**/*.md)",
+        filter: "scratch:///**/*.md",
+        included: ["scratch.md", "projects/foo/README.md", "projects/bar/notes.md"],
+        excluded: ["projects/foo/app.ts"],
       },
     ];
 

@@ -5,7 +5,7 @@ import { DisposableContainer } from "../util/containers";
 import { map, prop } from "../util/fu";
 import { asPromise } from "../util/promises";
 import { splitLines, splitWords, strip } from "../util/text";
-import { ensureUri, uriPath } from "../util/uri";
+import { ensureUri, normalizeFilter, uriPath } from "../util/uri";
 import { ScratchFileSystemProvider } from "./fs";
 import { SearchIndexProvider, SearchOptions } from "./search";
 import { ScratchTreeProvider } from "./tree";
@@ -44,10 +44,9 @@ export class ScratchLmToolkit extends DisposableContainer {
   }
 
   listScratches = (options?: ListScratchesOptions) => {
-    const filter = options?.filter;
-    const isGlob = filter && /[*?{[]/.test(filter);
-    const pattern = isGlob ? new Minimatch(filter!) : undefined;
-    const prefix = !isGlob && filter ? strip(filter, ["/"]).replace(/\/$/, "") : undefined;
+    const filter = options?.filter !== undefined ? normalizeFilter(options.filter) : undefined;
+    const pattern = filter?.startsWith("**/") ? new Minimatch(filter) : undefined;
+    const prefix = pattern ? undefined : filter?.replace(/\/$/, "");
     return this.treeProvider
       .getFlatTree()
       .then(map(prop("uri")))

@@ -2,6 +2,7 @@ import { strict as assert } from "assert";
 import { before, describe, it } from "mocha";
 import { FileType } from "vscode";
 import { ScratchLmToolkit } from "../providers/lm";
+import { SearchIndexProvider, SearchMatch } from "../providers/search";
 import { ScratchTreeProvider } from "../providers/tree";
 import { MockFS } from "./mock/fs";
 
@@ -142,5 +143,96 @@ describe("ScratchLmToolkit", () => {
         }
       });
     }
+  });
+
+  describe("searchScratches", () => {
+    const makeMatch = (
+      uri: string,
+      line: number,
+      content: string,
+      context: string[] = [],
+    ): SearchMatch => ({ uri, line, content, context, submatches: [] });
+
+    const makeSearchToolkit = (matches: SearchMatch[]) => {
+      const mockFs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      const searchProvider = {
+        search: () => Promise.resolve(matches),
+      } as unknown as SearchIndexProvider;
+      return new ScratchLmToolkit(mockFs, treeProvider, searchProvider);
+    };
+
+    it("returns 'No matches found.' when the search yields no results", async () => {
+      const toolkit = makeSearchToolkit([]);
+      const result = await toolkit.searchScratches({ query: "anything" });
+      assert.strictEqual(result, "No matches found.");
+    });
+
+    it("uses singular 'match' for exactly one result", async () => {
+      const toolkit = makeSearchToolkit([makeMatch("scratch:///notes.md", 3, "hello world")]);
+      const result = await toolkit.searchScratches({ query: "hello" });
+      assert.ok(result.includes("Found 1 match:"), `expected singular 'match', got:\n${result}`);
+    });
+
+    it("uses plural 'matches' for more than one result", async () => {
+      const toolkit = makeSearchToolkit([
+        makeMatch("scratch:///a.md", 1, "hello"),
+        makeMatch("scratch:///b.md", 2, "hello again"),
+      ]);
+      const result = await toolkit.searchScratches({ query: "hello" });
+      assert.ok(result.includes("Found 2 matches:"), `expected plural 'matches', got:\n${result}`);
+    });
+
+    it("formats each match with path:line prefix", async () => {
+      const toolkit = makeSearchToolkit([makeMatch("scratch:///notes/a.md", 7, "hello")]);
+      const result = await toolkit.searchScratches({ query: "hello" });
+      assert.ok(result.includes("notes/a.md:7"), `expected 'notes/a.md:7' in:\n${result}`);
+    });
+
+    it("formats matched content with → prefix", async () => {
+      const toolkit = makeSearchToolkit([makeMatch("scratch:///a.md", 1, "the matched line")]);
+      const result = await toolkit.searchScratches({ query: "matched" });
+      assert.ok(
+        result.includes("→ the matched line"),
+        `expected '→ the matched line' in:\n${result}`,
+      );
+    });
+
+    it("indents context lines with two spaces", async () => {
+      const toolkit = makeSearchToolkit([
+        makeMatch("scratch:///a.md", 5, "hit line", ["context before\n", "context after\n"]),
+      ]);
+      const result = await toolkit.searchScratches({ query: "hit" });
+      assert.ok(result.includes("  context before\n"), `expected indented context in:\n${result}`);
+      assert.ok(result.includes("  context after\n"), `expected indented context in:\n${result}`);
+    });
+
+    it("extracts path from scratch:/// URI (triple-slash format)", async () => {
+      const toolkit = makeSearchToolkit([makeMatch("scratch:///projects/ideas.md", 10, "idea")]);
+      const result = await toolkit.searchScratches({ query: "idea" });
+      assert.ok(result.includes("projects/ideas.md:10"), `expected extracted path in:\n${result}`);
+      assert.ok(!result.includes("scratch:///"), "should not include the raw URI scheme");
+    });
+
+    it("falls back to full URI when it does not match scratch:/// pattern", async () => {
+      const toolkit = makeSearchToolkit([makeMatch("scratch:/short.md", 1, "content")]);
+      const result = await toolkit.searchScratches({ query: "content" });
+      assert.ok(
+        result.includes("scratch:/short.md:1"),
+        `expected fallback full URI in:\n${result}`,
+      );
+    });
+
+    it("includes all matches in the output", async () => {
+      const toolkit = makeSearchToolkit([
+        makeMatch("scratch:///a.md", 1, "first"),
+        makeMatch("scratch:///b.md", 2, "second"),
+        makeMatch("scratch:///c.md", 3, "third"),
+      ]);
+      const result = await toolkit.searchScratches({ query: "x" });
+      assert.ok(result.includes("a.md:1"), "should include first match");
+      assert.ok(result.includes("b.md:2"), "should include second match");
+      assert.ok(result.includes("c.md:3"), "should include third match");
+    });
   });
 });

@@ -7,6 +7,7 @@ import { asPromise } from "../util/promises";
 import { splitLines, splitWords, strip } from "../util/text";
 import { ensureUri, uriPath } from "../util/uri";
 import { ScratchFileSystemProvider } from "./fs";
+import { SearchIndexProvider, SearchOptions } from "./search";
 import { ScratchTreeProvider } from "./tree";
 
 type ListScratchesOptions = {
@@ -37,6 +38,7 @@ export class ScratchLmToolkit extends DisposableContainer {
   constructor(
     private readonly fs: ScratchFileSystemProvider,
     private readonly treeProvider: ScratchTreeProvider,
+    private readonly searchProvider: SearchIndexProvider,
   ) {
     super();
   }
@@ -77,6 +79,30 @@ export class ScratchLmToolkit extends DisposableContainer {
 
   renameScratch = ({ oldUri, newUri }: RenameScratchOptions) =>
     this.fs.rename(ensureUri(oldUri), ensureUri(newUri), { overwrite: true });
+
+  searchScratches = (options: SearchOptions): Promise<string> =>
+    this.searchProvider.search(options).then(matches => {
+      if (matches.length === 0) {
+        return "No matches found.";
+      }
+
+      const extractPath = (uri: string): string => {
+        const match = uri.match(/scratch:\/\/\/(.+?)(?:#|$)/);
+        return match ? match[1] : uri;
+      };
+
+      const formatMatch = (match: (typeof matches)[0]): string[] => [
+        `${extractPath(match.uri)}:${match.line}`,
+        ...match.context.map(ctx => `  ${ctx}`),
+        `→ ${match.content}`,
+        "",
+      ];
+
+      return [
+        `Found ${matches.length} match${matches.length === 1 ? "" : "es"}:\n`,
+        ...matches.flatMap(formatMatch),
+      ].join("\n");
+    });
 }
 
 const maybeCall = <T, U>(val: T | ((arg: U) => T), arg: U): T => {

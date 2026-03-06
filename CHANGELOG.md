@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.1]
+
+- Minor improvements for LM tools to resolve ambiguities in parameters usage for agents
+
 ## [0.6.0]
 
 - Rewrite of the scratches search - now uses ripgrep, bundled with vscode,

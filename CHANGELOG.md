@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.3]
+
+- Hotfix to use bundled ripgrep from VSCode
+
 ## [0.6.2]
 
 - No changes, just fixing the build and publishing issues for 0.6.1 release

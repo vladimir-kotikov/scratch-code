@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.6.2]
+
+- No changes, just fixing the build and publishing issues for 0.6.1 release
+
 ## [0.6.1]
 
 - Minor improvements for LM tools to resolve ambiguities in parameters usage for agents

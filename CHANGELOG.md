@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0]
+
+- Rewrite of the scratches search - now uses ripgrep, bundled with vscode,
+  stateless and index free. All index related functionality is also removed, no
+  more indexing issues, index toolbar and messages.
+- Add search tool to scratches LM toolkit.
+
 ## [0.5.1]
 
 - Scratch LM tools updates: better messages and consistent naming

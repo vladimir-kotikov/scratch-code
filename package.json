@@ -109,7 +109,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "list_scratches",
         "userDescription": "Lists available scratches",
-        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered.\nUse when user asks to see available scratches or find files by pattern or directory.\n\nParameters:\n- filter (optional): A glob pattern, a bare basename, a path prefix, or a scratch:/// URI.\n  - Glob pattern: any string containing *, ?, {, or [ (e.g. \"**/*.ts\", \"projects/foo/**\", \"*.md\")\n    Glob patterns that do not already start with \"**/\" are automatically prepended with \"**/\",\n    so all globs match recursively across the full tree (e.g. \"*.md\" matches all .md files, not just root-level).\n  - Bare basename: a single name with no \"/\" (e.g. \"README.md\", \"testing\") is expanded to \"**/name\"\n    and matches files with that name at any depth.\n  - Path prefix: a slash-separated relative path (e.g. \"projects/foo/\", \"projects/foo\") matches all\n    scratch paths that start with it. Trailing slash is optional.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n  All forms match against the root-relative path without a leading slash.\n\nExamples:\n- {} → lists all scratches\n- { filter: \"projects/my-app/\" } → all scratches under projects/my-app/\n- { filter: \"projects/my-app\" } → same as above, trailing slash is optional\n- { filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { filter: \"**/*.ts\" } → all TypeScript files recursively\n- { filter: \"*.ts\" } → same as **/*.ts, auto-expanded to match recursively\n- { filter: \"README.md\" } → all files named README.md anywhere in the tree\n- { filter: \"projects/foo/**\" } → all files under projects/foo/ via glob\n\nReturns: Newline-separated paths (without leading slash) or empty string if none match.",
+        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered.\nUse when user asks to see available scratches or find files by pattern or directory.\n\nParameters:\n- filter (optional): A glob pattern, a bare basename, a path prefix, or a scratch:/// URI.\n  - Glob pattern: any string containing *, ?, {, or [ (e.g. \"**/*.ts\", \"projects/foo/**\", \"*.md\")\n    Glob patterns that do not already start with \"**/\" are automatically prepended with \"**/\",\n    so all globs match recursively across the full tree (e.g. \"*.md\" matches all .md files, not just root-level).\n  - Bare basename: a single name with no \"/\" (e.g. \"README.md\", \"testing\") is expanded to \"**/name\"\n    and matches files with that name at any depth.\n  - Path prefix: a slash-separated relative path (e.g. \"projects/foo/\", \"projects/foo\") matches all\n    scratch paths that start with it. Trailing slash is optional.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n  All forms match against the root-relative path without a leading slash.\n\nExamples:\n- {} → lists all scratches\n- { filter: \"projects/my-app/\" } → all scratches under projects/my-app/\n- { filter: \"projects/my-app\" } → same as above, trailing slash is optional\n- { filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { filter: \"**/*.ts\" } → all TypeScript files recursively\n- { filter: \"*.ts\" } → same as **/*.ts, auto-expanded to match recursively\n- { filter: \"README.md\" } → all files named README.md anywhere in the tree\n- { filter: \"projects/foo/**\" } → all files under projects/foo/ via glob\n\nReturns: Newline-separated paths (without leading slash), e.g. 'projects/foo/notes.md'. To use a path as a URI in other tools (read_scratch, get_scratch_outline, etc.), prefix it with 'scratch:///', e.g. 'scratch:///projects/foo/notes.md'.",
         "tags": [
           "scratches",
           "memory"
@@ -142,7 +142,7 @@
           "properties": {
             "uri": {
               "type": "string",
-              "description": "The scratch URI to read from. Must be a valid scratch:// URI or URI string."
+              "description": "The scratch URI to read from. Must be a valid scratch:/// URI or URI string."
             },
             "lineFrom": {
               "type": "number",
@@ -175,7 +175,7 @@
           "properties": {
             "uri": {
               "type": "string",
-              "description": "The scratch URI to write to. Must be a valid scratch:// URI or URI string. Parent directories will be created if needed."
+              "description": "The scratch URI to inspect. Must be a valid scratch:/// URI or URI string."
             },
             "content": {
               "type": "string",
@@ -205,11 +205,11 @@
           "properties": {
             "oldUri": {
               "type": "string",
-              "description": "The current scratch URI to rename from. Must be a valid scratch:// URI or URI string."
+              "description": "The current scratch URI to rename from. Must be a valid scratch:/// URI or URI string."
             },
             "newUri": {
               "type": "string",
-              "description": "The new scratch URI to rename to. Must be a valid scratch:// URI or URI string. Parent directories will be created if needed."
+              "description": "The new scratch URI to rename to. Must be a valid scratch:/// URI or URI string. Parent directories will be created if needed."
             }
           },
           "required": [

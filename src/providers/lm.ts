@@ -85,10 +85,7 @@ export class ScratchLmToolkit extends DisposableContainer {
         return "No matches found.";
       }
 
-      const extractPath = (uri: string): string => {
-        const match = uri.match(/scratch:\/\/\/(.+?)(?:#|$)/);
-        return match ? match[1] : uri;
-      };
+      const extractPath = (uri: string): string => strip(uriPath(uri), ["/"]);
 
       const formatMatch = (match: (typeof matches)[0]): string[] => [
         `${extractPath(match.uri)}:${match.line}`,

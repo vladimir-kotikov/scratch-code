@@ -34,7 +34,7 @@ export const toScratchUri = (scratchDir: Uri, uri: Uri): Uri => {
 // Slash-separated path prefixes (e.g. "projects/foo") pass through unchanged
 // and are used as directory-scope limits.
 export const normalizeFilter = (filter: string): string => {
-  const p = filter.startsWith(`${SCHEME}://`) ? ensureUri(filter).path : filter;
+  const p = filter.startsWith(`${SCHEME}:`) ? ensureUri(filter).path : filter;
   const stripped = p.replace(/^\/+/, "");
   const isGlob = /[*?{[]/.test(stripped);
   if (isGlob && !stripped.startsWith("**/")) {

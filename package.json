@@ -224,6 +224,125 @@
         }
       },
       {
+        "name": "edit_scratch",
+        "displayName": "Edit Scratch",
+        "icon": "$(diff)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "edit_scratch",
+        "userDescription": "Applies granular edits to one or more scratch files",
+        "modelDescription": "Applies one or more granular line-level edits to existing scratch files. Supports insert, replace, and append operations, batched across multiple files in a single call.\nPrefer over write_scratch when modifying part of a file — avoids rewriting content you haven't read.\nLine numbers are 1-based physical lines (including blank lines), matching get_scratch_outline and read_scratch.\n\nParameters:\n- edits (required): Array of per-file edit groups, each with:\n  - uri (required): Scratch URI (e.g., \"scratch:///notes.md\")\n  - edits (required): Array of operations to apply to this file. Multiple ops on the same file are applied bottom-to-top automatically, so you can pass them in natural top-to-bottom order.\n    - insert: { op: \"insert\", line: N, content: \"...\" } — inserts content before physical line N (1-based). Use line = (last line + 1) to insert after the last line, equivalent to append.\n    - replace: { op: \"replace\", lineFrom: N, lineTo: M, content: \"...\" } — replaces physical lines N through M inclusive with content. Pass content: \"\" to delete the range.\n    - append: { op: \"append\", content: \"...\" } — appends content after the last line of the file.\n\nExamples:\n- Insert a new section before line 10:\n  { edits: [{ uri: \"scratch:///notes.md\", edits: [{ op: \"insert\", line: 10, content: \"## New Section\" }] }] }\n- Replace lines 5-8 with updated content:\n  { edits: [{ uri: \"scratch:///notes.md\", edits: [{ op: \"replace\", lineFrom: 5, lineTo: 8, content: \"updated line\" }] }] }\n- Delete lines 3-5:\n  { edits: [{ uri: \"scratch:///code.ts\", edits: [{ op: \"replace\", lineFrom: 3, lineTo: 5, content: \"\" }] }] }\n- Append a footer and fix a heading in the same file:\n  { edits: [{ uri: \"scratch:///notes.md\", edits: [{ op: \"replace\", lineFrom: 1, lineTo: 1, content: \"# Fixed Title\" }, { op: \"append\", content: \"---\\nEnd of file\" }] }] }\n- Edit two files at once:\n  { edits: [{ uri: \"scratch:///a.md\", edits: [{ op: \"append\", content: \"note\" }] }, { uri: \"scratch:///b.md\", edits: [{ op: \"insert\", line: 1, content: \"# Header\" }] }] }\n\nReturns: \"Edited: path1, path2\" on success, or an error if a file does not exist.",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "edits": {
+              "type": "array",
+              "description": "List of per-file edit groups.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "description": "The scratch URI to edit. Must be a valid scratch:/// URI or URI string. The file must already exist."
+                  },
+                  "edits": {
+                    "type": "array",
+                    "description": "Operations to apply to this file. Multiple ops are applied bottom-to-top so you can write them in natural reading order.",
+                    "items": {
+                      "type": "object",
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "insert"
+                              ],
+                              "description": "Inserts content before a given line."
+                            },
+                            "line": {
+                              "type": "number",
+                              "description": "Physical line number (1-based) to insert before. Use N+1 (where N is the file length) to insert after the last line. Values larger than N+1 are rejected."
+                            },
+                            "content": {
+                              "type": "string",
+                              "description": "Text to insert. May contain newlines for multi-line content."
+                            }
+                          },
+                          "required": [
+                            "op",
+                            "line",
+                            "content"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "replace"
+                              ],
+                              "description": "Replaces a range of lines with new content. Pass content: \"\" to delete the range."
+                            },
+                            "lineFrom": {
+                              "type": "number",
+                              "description": "First physical line of the range to replace (1-based, inclusive)."
+                            },
+                            "lineTo": {
+                              "type": "number",
+                              "description": "Last physical line of the range to replace (1-based, inclusive)."
+                            },
+                            "content": {
+                              "type": "string",
+                              "description": "Replacement text. May contain newlines. Pass \"\" to delete the range."
+                            }
+                          },
+                          "required": [
+                            "op",
+                            "lineFrom",
+                            "lineTo",
+                            "content"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "append"
+                              ],
+                              "description": "Appends content after the last line of the file. Empty string is a no-op."
+                            },
+                            "content": {
+                              "type": "string",
+                              "description": "Text to append. May contain newlines. Empty string is treated as a no-op."
+                            }
+                          },
+                          "required": [
+                            "op",
+                            "content"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "uri",
+                  "edits"
+                ]
+              }
+            }
+          },
+          "required": [
+            "edits"
+          ]
+        }
+      },
+      {
         "name": "rename_scratch",
         "displayName": "Rename Scratch",
         "icon": "$(edit)",

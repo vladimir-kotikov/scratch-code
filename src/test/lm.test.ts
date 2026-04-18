@@ -270,6 +270,320 @@ describe("ScratchLmToolkit", () => {
     });
   });
 
+  describe("editScratch", () => {
+    const INITIAL = "line one\nline two\nline three\nline four\nline five";
+    const URI = "scratch:///notes.md";
+
+    function makeEditToolkit(content = INITIAL) {
+      const mockFs = new MockFS({
+        "notes.md": { content },
+        ".pinstore": { mtime: 0, content: "" },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      const toolkit = new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
+      return { toolkit, mockFs };
+    }
+
+    async function readBack(mockFs: ReturnType<typeof makeEditToolkit>["mockFs"]) {
+      const bytes = await mockFs.readFile(Uri.parse(URI));
+      return new TextDecoder().decode(bytes);
+    }
+
+    it("appends content to the file", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "line six" }] }],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "line one\nline two\nline three\nline four\nline five\nline six",
+      );
+    });
+
+    it("inserts content before a given line (1-based)", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 2, content: "inserted" }] }],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "line one\ninserted\nline two\nline three\nline four\nline five",
+      );
+    });
+
+    it("inserts at line length + 1 appends as the new last line", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 6, content: "line six" }] }],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "line one\nline two\nline three\nline four\nline five\nline six",
+      );
+    });
+    it("inserts before line 1 prepends to the file", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 1, content: "header" }] }],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "header\nline one\nline two\nline three\nline four\nline five",
+      );
+    });
+
+    it("replaces a single line", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 3, lineTo: 3, content: "replaced" }],
+          },
+        ],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "line one\nline two\nreplaced\nline four\nline five",
+      );
+    });
+
+    it("replaces a multi-line range", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 2, lineTo: 4, content: "new two\nnew three" }],
+          },
+        ],
+      });
+      assert.strictEqual(await readBack(mockFs), "line one\nnew two\nnew three\nline five");
+    });
+
+    it("deletes lines when replace content is empty", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [
+          { uri: Uri.parse(URI), edits: [{ op: "replace", lineFrom: 2, lineTo: 4, content: "" }] },
+        ],
+      });
+      assert.strictEqual(await readBack(mockFs), "line one\nline five");
+    });
+
+    it("applies multiple ops in natural top-to-bottom order without line shift", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [
+              { op: "replace", lineFrom: 1, lineTo: 1, content: "ONE" },
+              { op: "replace", lineFrom: 3, lineTo: 3, content: "THREE" },
+            ],
+          },
+        ],
+      });
+      assert.strictEqual(await readBack(mockFs), "ONE\nline two\nTHREE\nline four\nline five");
+    });
+
+    it("applies append after all line ops regardless of order", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [
+              { op: "append", content: "LAST" },
+              { op: "replace", lineFrom: 1, lineTo: 1, content: "FIRST" },
+            ],
+          },
+        ],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "FIRST\nline two\nline three\nline four\nline five\nLAST",
+      );
+    });
+
+    it("edits two files in a single batch call", async () => {
+      const mockFs = new MockFS({
+        "notes.md": { content: INITIAL },
+        "other.md": { content: "alpha\nbeta" },
+        ".pinstore": { mtime: 0, content: "" },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      const toolkit = new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
+
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 1, lineTo: 1, content: "updated" }],
+          },
+          { uri: Uri.parse("scratch:///other.md"), edits: [{ op: "append", content: "gamma" }] },
+        ],
+      });
+
+      assert.ok(result.includes("notes.md"), "result should mention notes.md");
+      assert.ok(result.includes("other.md"), "result should mention other.md");
+      const notesBytes = await mockFs.readFile(Uri.parse(URI));
+      assert.strictEqual(
+        new TextDecoder().decode(notesBytes),
+        "updated\nline two\nline three\nline four\nline five",
+      );
+      const otherBytes = await mockFs.readFile(Uri.parse("scratch:///other.md"));
+      assert.strictEqual(new TextDecoder().decode(otherBytes), "alpha\nbeta\ngamma");
+    });
+
+    it("returns the edited path(s) on success", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "x" }] }],
+      });
+      assert.strictEqual(result, "Edited: notes.md");
+    });
+
+    it("reports error when insert line is 0", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 0, content: "bad" }] }],
+      });
+      assert.ok(result.includes("line must be ≥ 1"), `unexpected result: ${result}`);
+    });
+
+    it("reports error when insert line exceeds file length + 1", async () => {
+      const { toolkit } = makeEditToolkit(); // INITIAL has 5 lines
+      const result = await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 7, content: "bad" }] }],
+      });
+      assert.ok(result.includes("exceeds file length"), `unexpected result: ${result}`);
+    });
+
+    it("inserts after the last line when line equals file length + 1", async () => {
+      const { toolkit, mockFs } = makeEditToolkit(); // INITIAL has 5 lines
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 6, content: "appended" }] }],
+      });
+      assert.strictEqual(
+        await readBack(mockFs),
+        "line one\nline two\nline three\nline four\nline five\nappended",
+      );
+    });
+
+    it("reports error when replace lineFrom is 0", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 0, lineTo: 1, content: "bad" }],
+          },
+        ],
+      });
+      assert.ok(result.includes("lineFrom must be ≥ 1"), `unexpected result: ${result}`);
+    });
+
+    it("reports error when replace lineFrom > lineTo", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 4, lineTo: 2, content: "bad" }],
+          },
+        ],
+      });
+      assert.ok(
+        result.includes("lineFrom (4) must be ≤ lineTo (2)"),
+        `unexpected result: ${result}`,
+      );
+    });
+
+    it("reports error when replace lineFrom exceeds file length", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 10, lineTo: 12, content: "bad" }],
+          },
+        ],
+      });
+      assert.ok(
+        result.includes("lineFrom (10) exceeds file length"),
+        `unexpected result: ${result}`,
+      );
+    });
+
+    it("reports error when replace lineTo exceeds file length", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [{ op: "replace", lineFrom: 4, lineTo: 9, content: "bad" }],
+          },
+        ],
+      });
+      assert.ok(result.includes("lineTo (9) exceeds file length"), `unexpected result: ${result}`);
+    });
+
+    it("reports error when two ops target overlapping lines", async () => {
+      const { toolkit } = makeEditToolkit();
+      const result = await toolkit.editScratch({
+        edits: [
+          {
+            uri: Uri.parse(URI),
+            edits: [
+              { op: "replace", lineFrom: 2, lineTo: 4, content: "A" },
+              { op: "insert", line: 3, content: "B" },
+            ],
+          },
+        ],
+      });
+      assert.ok(result.includes("overlapping lines"), `unexpected result: ${result}`);
+    });
+
+    it("treats append with empty content as a no-op", async () => {
+      const { toolkit, mockFs } = makeEditToolkit();
+      await toolkit.editScratch({
+        edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "" }] }],
+      });
+      assert.strictEqual(await readBack(mockFs), INITIAL);
+    });
+
+    it("returns succeeded and failed paths when one file has invalid ops", async () => {
+      const mockFs = new MockFS({
+        "notes.md": { content: INITIAL },
+        "other.md": { content: "alpha\nbeta" },
+        ".pinstore": { mtime: 0, content: "" },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      const toolkit = new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
+
+      const result = await toolkit.editScratch({
+        edits: [
+          { uri: Uri.parse(URI), edits: [{ op: "append", content: "ok" }] },
+          {
+            uri: Uri.parse("scratch:///other.md"),
+            edits: [{ op: "insert", line: 100, content: "bad" }],
+          },
+        ],
+      });
+
+      assert.ok(
+        result.includes("Edited:") && result.includes("notes.md"),
+        `expected success for notes.md in: ${result}`,
+      );
+      assert.ok(result.includes("Failed:"), `expected failure section in: ${result}`);
+      assert.ok(result.includes("other.md"), `expected other.md mentioned in: ${result}`);
+      assert.ok(result.includes("exceeds file length"), `expected error detail in: ${result}`);
+      const notesBytes = await mockFs.readFile(Uri.parse(URI));
+      assert.strictEqual(new TextDecoder().decode(notesBytes), INITIAL + "\nok");
+    });
+  });
+
   describe("searchScratches", () => {
     const makeMatch = (
       uri: string,

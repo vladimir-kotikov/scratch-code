@@ -86,6 +86,23 @@ export class MockFS extends ScratchFileSystemProvider {
     this.syncBuffers();
   };
 
+  writeFile = async (
+    uri: Uri,
+    content?: Uint8Array | string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options?: { create?: boolean; overwrite?: boolean },
+  ): Promise<void> => {
+    const name = uri.path.replace(/^\//, "");
+    const contentStr =
+      typeof content === "string" ? content : content ? new TextDecoder().decode(content) : "";
+    if (this.files[name]) {
+      this.files[name].content = contentStr;
+    } else {
+      this.files[name] = { content: contentStr };
+    }
+    this.fileBuffers[name] = Buffer.from(contentStr);
+  };
+
   triggerChange = (event: FileChangeEvent) => {
     this.syncBuffers();
     this._onDidChangeFileEmitter.fire([event]);

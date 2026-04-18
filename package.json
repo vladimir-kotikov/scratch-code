@@ -159,13 +159,13 @@
         }
       },
       {
-        "name": "write_scratch",
-        "displayName": "Write Scratch",
-        "icon": "$(save)",
+        "name": "get_scratch_outline",
+        "displayName": "Get Scratch Outline",
+        "icon": "$(list-tree)",
         "canBeReferencedInPrompt": true,
-        "toolReferenceName": "write_scratch",
-        "userDescription": "Writes content to a scratch file",
-        "modelDescription": "Writes content to a scratch file, creating it if it doesn't exist or overwriting if it does.\nUse when user asks to save, create, or update scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- content (required): Content to write to the file\n\nExamples:\n- { uri: \"scratch:///notes.md\", content: \"My notes\" } → creates/overwrites file\n- { uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratch written successfully.\". After writing always provide a short (1-2 lines) sumary of changes made,",
+        "toolReferenceName": "get_scratch_outline",
+        "userDescription": "Returns a structured outline of symbols in a scratch file",
+        "modelDescription": "Returns a structured, indented outline of the symbols found in a scratch file: headings for Markdown, classes/methods/functions for code, etc.\nUse to quickly understand the structure of a scratch without reading the full file. Ideal for identifying sections to target with read_scratch line ranges.\n\nParameters:\n- uri (required): Scratch URI formed by prefixing a path from list_scratches with 'scratch:///' (e.g. if list_scratches returns 'notes.md', use 'scratch:///notes.md')\n- depth (optional): Maximum nesting depth to include, minimum 1 (default: 2). depth=1 returns only top-level symbols (e.g. H1 headings, top-level classes); depth=2 also includes their direct children (e.g. H2 headings, class methods); etc.\n\nExamples:\n- { uri: \"scratch:///notes.md\" } → returns Markdown headings up to 2 levels deep\n- { uri: \"scratch:///code/app.ts\", depth: 3 } → returns classes, their methods, and nested items\n- { uri: \"scratch:///data/config.json\", depth: 1 } → returns only root-level JSON keys\n\nReturns: symbols ordered top-to-bottom by file position, indented two spaces per level. Each entry reports name, kind, and line range ('line N' for single-line symbols, 'lines N-M' for multi-line):\n  Introduction (String, line 1)\n    Background (String, lines 3-12)\n  Implementation (String, lines 15-30)\nor 'No symbols found.' when the file type has no active symbol provider or the file is empty.\n\nNotes:\n- For flat scripts (JS/TS files without classes), every top-level variable declaration appears as a separate symbol at depth=1. This can produce a large number of entries; consider using depth=1 to see just the top-level list.\n- On the first call for a file not yet opened in the current session, the language server may not have initialized yet; the tool retries once automatically.\n- When a language server returns a flat SymbolInformation list instead of a hierarchical DocumentSymbol tree, depth filtering is applied via the containerName field. The result is accurate for most Markdown and simple code files, but may be approximate when symbol names are not unique within a file.",
         "tags": [
           "scratches",
           "memory"
@@ -177,15 +177,38 @@
               "type": "string",
               "description": "The scratch URI to inspect. Must be a valid scratch:/// URI or URI string."
             },
-            "content": {
-              "type": "string",
-              "description": "The content to write to the file. Will overwrite existing content if file exists."
+            "depth": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Maximum nesting depth of symbols to include. depth=1 returns only top-level symbols; depth=2 also includes their direct children. Defaults to 2."
             }
           },
           "required": [
-            "uri",
-            "content"
+            "uri"
           ]
+        }
+      },
+      {
+        "name": "write_scratch",
+        "displayName": "Write Scratch",
+        "icon": "$(save)",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "write_scratch",
+        "userDescription": "Writes content to one or more scratch files in a single call",
+        "modelDescription": "Writes content to one or more scratch files, creating them if they don't exist or overwriting if they do.\nUse when user asks to save, create, or update scratch content. Prefer batching multiple writes into a single call.\n\nInput: an object where each key is a scratch URI and its value is the content to write.\n\nExamples:\n- { \"scratch:///notes.md\": \"My notes\" } → creates/overwrites single file\n- { \"scratch:///a.md\": \"Content A\", \"scratch:///b.md\": \"Content B\" } → writes two files at once\n- { \"scratch:///code/test.ts\": \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratches written successfully.\" on full success, or a list of failures. After writing always provide a short (1-2 lines) summary of changes made.",
+        "tags": [
+          "scratches",
+          "memory"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "description": "An object mapping scratch URIs to their content. Each key must be a valid scratch:/// URI or URI string; parent directories will be created if needed.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "The content to write to the scratch file identified by the key URI. Will overwrite existing content if the file exists."
+          },
+          "minProperties": 1
         }
       },
       {

@@ -21,10 +21,14 @@ export const pass =
   (): T extends undefined ? undefined : T =>
     value as T extends undefined ? undefined : T;
 
-export const zip =
-  <A, B>(as: A[]) =>
-  (bs: B[]): [A, B][] =>
-    as.map((a, i) => [a, bs[i]]);
+export function zip<A, B>(as: A[]): (bs: B[]) => [A, B][];
+export function zip<A, B>(as: A[], bs: B[]): [A, B][];
+export function zip<A, B>(as: A[], bs?: B[]): [A, B][] | ((bs: B[]) => [A, B][]) {
+  if (bs !== undefined) {
+    return as.map((a, i) => [a, bs[i]]);
+  }
+  return (bs: B[]) => as.map((a, i) => [a, bs[i]]);
+}
 
 export const prop =
   <K extends PropertyKey>(key: K) =>

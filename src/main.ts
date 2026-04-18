@@ -72,12 +72,21 @@ export function activate(context: vscode.ExtensionContext) {
         message: uri.toString(),
       }),
     }),
+    registerTool("get_scratch_outline", lmToolset.getScratchOutline, {
+      invocationMessage: ({ uri }) => `Reading structure of ${uri}`,
+    }),
     registerTool("write_scratch", lmToolset.writeScratch, {
-      invocationMessage: ({ uri }) => `Writing ${uri}`,
-      confirmationMessage: ({ uri }) => ({
-        title: "Write scratch?",
-        message: uri.toString(),
-      }),
+      invocationMessage: scratches => {
+        const uris = Object.keys(scratches);
+        return uris.length === 1 ? `Writing ${uris[0]}` : `Writing ${uris.length} scratches`;
+      },
+      confirmationMessage: scratches => {
+        const uris = Object.keys(scratches);
+        return {
+          title: `Write scratch${uris.length === 1 ? "" : "es"}?`,
+          message: uris.join(", "),
+        };
+      },
     }),
     registerTool("rename_scratch", lmToolset.renameScratch, {
       invocationMessage: ({ oldUri, newUri }) =>

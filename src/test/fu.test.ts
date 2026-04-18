@@ -1,6 +1,6 @@
 import { strict as assert } from "assert";
 import { describe, it } from "mocha";
-import { pipe, reduce, sort, tap } from "../util/fu";
+import { pipe, reduce, sort, tap, zip } from "../util/fu";
 
 describe("fu utilities", () => {
   describe("pipe", () => {
@@ -73,6 +73,40 @@ describe("fu utilities", () => {
       const sum = (acc: number, x: number) => acc + x;
       const reduceFn = reduce(sum, 42);
       assert.strictEqual(reduceFn([]), 42);
+    });
+  });
+
+  describe("zip", () => {
+    it("direct call form returns paired tuples", () => {
+      assert.deepEqual(zip([1, 2, 3], ["a", "b", "c"]), [
+        [1, "a"],
+        [2, "b"],
+        [3, "c"],
+      ]);
+    });
+
+    it("curried call form returns paired tuples", () => {
+      assert.deepEqual(zip([1, 2, 3])(["a", "b", "c"]), [
+        [1, "a"],
+        [2, "b"],
+        [3, "c"],
+      ]);
+    });
+
+    it("both forms produce the same result", () => {
+      const as = [10, 20];
+      const bs = ["x", "y"];
+      assert.deepEqual(zip(as, bs), zip(as)(bs));
+    });
+
+    it("works with empty arrays", () => {
+      assert.deepEqual(zip([], []), []);
+    });
+
+    it("result length matches the first array", () => {
+      const result = zip([1, 2, 3], ["a", "b"]);
+      assert.strictEqual(result.length, 3);
+      assert.deepEqual(result[2], [3, undefined]);
     });
   });
 

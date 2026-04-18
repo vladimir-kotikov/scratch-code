@@ -523,6 +523,7 @@
     "fmt": "prettier --write src && eslint src/**/*.ts --fix",
     "lint": "prettier --check src && eslint src/**/*.ts",
     "test:unit": "npm run compile:tests && vscode-test",
+    "test:lm-tools": "npm run compile:tests && vscode-test --config .vscode-test.lm.mjs",
     "test:ui": "npm run compile && npx extest run-tests 'out/ui-test/**/*.test.js' --storage .uitest-temp/ --code_version max --type stable --extensions_dir .uitest-temp/extensions",
     "test": "npm run test:unit && npm run test:ui",
     "prepare": "npx husky || true"

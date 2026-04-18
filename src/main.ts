@@ -66,10 +66,11 @@ export function activate(context: vscode.ExtensionContext) {
         `Reading list of scratches${options?.filter ? ` matching "${options.filter}"` : ""}.`,
     }),
     registerTool("read_scratch", lmToolset.readScratch, {
-      invocationMessage: ({ uri }) => `Reading ${uri}`,
-      confirmationMessage: ({ uri }) => ({
+      invocationMessage: ({ reads }) =>
+        reads.length === 1 ? `Reading ${reads[0].uri}` : `Reading ${reads.length} scratches`,
+      confirmationMessage: ({ reads }) => ({
         title: "Read scratch?",
-        message: uri.toString(),
+        message: reads.map(r => String(r.uri)).join("\n"),
       }),
     }),
     registerTool("get_scratch_outline", lmToolset.getScratchOutline, {

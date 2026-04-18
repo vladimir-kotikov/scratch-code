@@ -164,6 +164,112 @@ describe("ScratchLmToolkit", () => {
     }
   });
 
+  describe("readScratch", () => {
+    const CONTENT = "line one\nline two\nline three\nline four\nline five";
+    const SPARSE = "first\n\nsecond\n\nthird";
+    const URI = "scratch:///notes.md";
+
+    function makeReadToolkit() {
+      const mockFs = new MockFS({
+        "notes.md": { content: CONTENT },
+        "sparse.md": { content: SPARSE },
+        ".pinstore": { mtime: 0, content: "" },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      return new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
+    }
+
+    function makeMultiReadToolkit() {
+      const mockFs = new MockFS({
+        "notes.md": { content: CONTENT },
+        "other.md": { content: "alpha\nbeta\ngamma" },
+        ".pinstore": { mtime: 0, content: "" },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      return new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
+    }
+
+    it("reads the full file when no range given", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({ reads: [{ uri: Uri.parse(URI) }] });
+      assert.strictEqual(result, `[${URI}]\n${CONTENT}`);
+    });
+
+    it("reads from lineFrom to end (1-based inclusive)", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({ reads: [{ uri: Uri.parse(URI), lineFrom: 3 }] });
+      assert.strictEqual(result, `[${URI}, from line 3]\nline three\nline four\nline five`);
+    });
+
+    it("reads from start to lineTo (1-based inclusive)", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({ reads: [{ uri: Uri.parse(URI), lineTo: 2 }] });
+      assert.strictEqual(result, `[${URI}, lines 1-2]\nline one\nline two`);
+    });
+
+    it("reads a specific range with lineFrom and lineTo (1-based inclusive)", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({
+        reads: [{ uri: Uri.parse(URI), lineFrom: 2, lineTo: 4 }],
+      });
+      assert.strictEqual(result, `[${URI}, lines 2-4]\nline two\nline three\nline four`);
+    });
+
+    it("reads a single line when lineFrom === lineTo", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({
+        reads: [{ uri: Uri.parse(URI), lineFrom: 3, lineTo: 3 }],
+      });
+      assert.strictEqual(result, `[${URI}, line 3]\nline three`);
+    });
+
+    it("lineFrom=1 lineTo=last returns the full content", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({
+        reads: [{ uri: Uri.parse(URI), lineFrom: 1, lineTo: 5 }],
+      });
+      assert.strictEqual(result, `[${URI}, lines 1-5]\n${CONTENT}`);
+    });
+
+    it("preserves blank lines — line numbers match physical file lines", async () => {
+      const toolkit = makeReadToolkit();
+      // SPARSE = "first\n\nsecond\n\nthird" — 5 physical lines (2 blank)
+      // line 2 is blank, line 4 is blank
+      const result = await toolkit.readScratch({
+        reads: [{ uri: Uri.parse("scratch:///sparse.md"), lineFrom: 2, lineTo: 4 }],
+      });
+      assert.strictEqual(result, "[scratch:///sparse.md, lines 2-4]\n\nsecond\n");
+    });
+
+    it("reads multiple files in one batch", async () => {
+      const toolkit = makeMultiReadToolkit();
+      const result = await toolkit.readScratch({
+        reads: [
+          { uri: Uri.parse(URI), lineFrom: 1, lineTo: 2 },
+          { uri: Uri.parse("scratch:///other.md"), lineFrom: 2 },
+        ],
+      });
+      assert.strictEqual(
+        result,
+        `[${URI}, lines 1-2]\nline one\nline two\n---\n[scratch:///other.md, from line 2]\nbeta\ngamma`,
+      );
+    });
+
+    it("reads two ranges from the same file", async () => {
+      const toolkit = makeReadToolkit();
+      const result = await toolkit.readScratch({
+        reads: [
+          { uri: Uri.parse(URI), lineFrom: 1, lineTo: 2 },
+          { uri: Uri.parse(URI), lineFrom: 4, lineTo: 5 },
+        ],
+      });
+      assert.strictEqual(
+        result,
+        `[${URI}, lines 1-2]\nline one\nline two\n---\n[${URI}, lines 4-5]\nline four\nline five`,
+      );
+    });
+  });
+
   describe("searchScratches", () => {
     const makeMatch = (
       uri: string,

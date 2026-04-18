@@ -132,7 +132,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "read_scratch",
         "userDescription": "Reads content from a scratch file",
-        "modelDescription": "Reads the content of a scratch file, optionally reading a specific line range.\nUse when user asks to view or retrieve scratch content.\n\nParameters:\n- uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n- lineFrom (optional): Starting line number (0-based, inclusive)\n- lineTo (optional): Ending line number (0-based, exclusive)\n\nExamples:\n- { uri: \"scratch:///notes.md\" } → full file content\n- { uri: \"scratch:///code.ts\", lineFrom: 10, lineTo: 20 } → lines 10-19\n\nReturns: File content as string.",
+        "modelDescription": "Reads content from one or more scratch files, optionally with line ranges per file. Batch multiple reads to minimize round-trips.\nUse when user asks to view or retrieve scratch content. Combine with get_scratch_outline to read targeted sections by line range.\n\nParameters:\n- reads (required): Array of read requests, each with:\n  - uri (required): Scratch URI (e.g., \"scratch:///notes.md\") or URI string\n  - lineFrom (optional): Starting line number (1-based, inclusive, counting all lines including blank ones). Matches physical line numbers reported by get_scratch_outline.\n  - lineTo (optional): Ending line number (1-based, inclusive, counting all lines including blank ones). Matches physical line numbers reported by get_scratch_outline.\n\nExamples:\n- { reads: [{ uri: \"scratch:///notes.md\" }] } → full file content\n- { reads: [{ uri: \"scratch:///code.ts\", lineFrom: 10, lineTo: 20 }] } → lines 10 through 20 inclusive (blank lines counted)\n- { reads: [{ uri: \"scratch:///a.md\", lineFrom: 5 }, { uri: \"scratch:///b.md\", lineTo: 10 }] } → batch read from two files\n- { reads: [{ uri: \"scratch:///notes.md\", lineFrom: 1, lineTo: 5 }, { uri: \"scratch:///notes.md\", lineFrom: 20, lineTo: 30 }] } → two ranges from same file\n\nReturns: Each result labeled with its URI and range. Multiple results separated by --- lines:\n  [scratch:///notes.md, lines 1-5]\n  <content>\n  ---\n  [scratch:///other.md]\n  <content>",
         "tags": [
           "scratches",
           "memory"
@@ -140,21 +140,33 @@
         "inputSchema": {
           "type": "object",
           "properties": {
-            "uri": {
-              "type": "string",
-              "description": "The scratch URI to read from. Must be a valid scratch:/// URI or URI string."
-            },
-            "lineFrom": {
-              "type": "number",
-              "description": "Optional starting line number (0-based, inclusive). If omitted, reads from the beginning."
-            },
-            "lineTo": {
-              "type": "number",
-              "description": "Optional ending line number (0-based, exclusive). If omitted, reads to the end."
+            "reads": {
+              "type": "array",
+              "description": "List of read requests. Each item specifies a file and an optional line range.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "description": "The scratch URI to read from. Must be a valid scratch:/// URI or URI string."
+                  },
+                  "lineFrom": {
+                    "type": "number",
+                    "description": "Optional starting line number (1-based, inclusive). Matches line numbers from get_scratch_outline. If omitted, reads from the beginning."
+                  },
+                  "lineTo": {
+                    "type": "number",
+                    "description": "Optional ending line number (1-based, inclusive). Matches line numbers from get_scratch_outline. If omitted, reads to the end."
+                  }
+                },
+                "required": [
+                  "uri"
+                ]
+              }
             }
           },
           "required": [
-            "uri"
+            "reads"
           ]
         }
       },

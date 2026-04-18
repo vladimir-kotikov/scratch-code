@@ -4,7 +4,7 @@ import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult, 
 import { DisposableContainer } from "../util/containers";
 import { map, prop, zip } from "../util/fu";
 import { asPromise } from "../util/promises";
-import { splitLines, splitWords, strip } from "../util/text";
+import { splitWords, strip } from "../util/text";
 import { ensureUri, normalizeFilter, uriPath } from "../util/uri";
 import { ScratchFileSystemProvider } from "./fs";
 import { SearchIndexProvider, SearchOptions } from "./search";
@@ -14,10 +14,14 @@ type ListScratchesOptions = {
   filter?: string;
 };
 
-type ReadScratchOptions = {
+type ReadScratchRequest = {
   uri: string | Uri;
   lineFrom?: number;
   lineTo?: number;
+};
+
+type ReadScratchOptions = {
+  reads: ReadScratchRequest[];
 };
 
 type OutlineOptions = {
@@ -129,16 +133,36 @@ export class ScratchLmToolkit extends DisposableContainer {
       );
   };
 
-  readScratch = ({ uri, lineFrom, lineTo }: ReadScratchOptions) =>
-    this.fs
-      .readFile(ensureUri(uri))
-      .then(bytes => new TextDecoder().decode(bytes))
-      .then(content => {
-        if (lineFrom !== undefined || lineTo !== undefined) {
-          return splitLines(content).slice(lineFrom, lineTo).join("\n");
-        }
-        return content;
-      });
+  readScratch = ({ reads }: ReadScratchOptions): Promise<string> =>
+    Promise.all(
+      reads.map(({ uri, lineFrom, lineTo }) => {
+        const resolvedUri = ensureUri(uri);
+        return this.fs
+          .readFile(resolvedUri)
+          .then(bytes => new TextDecoder().decode(bytes))
+          .then(content => {
+            // lineFrom and lineTo are 1-based inclusive, matching get_scratch_outline output
+            const lines =
+              lineFrom !== undefined || lineTo !== undefined
+                ? content
+                    .split(/\r?\n/)
+                    .slice(lineFrom !== undefined ? lineFrom - 1 : 0, lineTo)
+                    .join("\n")
+                : content;
+            const rangeLabel =
+              lineFrom !== undefined && lineTo !== undefined
+                ? lineFrom === lineTo
+                  ? `, line ${lineFrom}`
+                  : `, lines ${lineFrom}-${lineTo}`
+                : lineFrom !== undefined
+                  ? `, from line ${lineFrom}`
+                  : lineTo !== undefined
+                    ? `, lines 1-${lineTo}`
+                    : "";
+            return `[scratch:///${strip(uriPath(resolvedUri), ["/"])}${rangeLabel}]\n${lines}`;
+          });
+      }),
+    ).then(results => results.join("\n---\n"));
 
   getScratchOutline = async ({ uri, depth = 2 }: OutlineOptions): Promise<string> => {
     const resolvedUri = ensureUri(uri);

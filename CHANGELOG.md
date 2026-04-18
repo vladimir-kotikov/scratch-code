@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0]
+
+- Add `get_scratch_outline` LM tool for navigating document structure with line numbers
+- Add `edit_scratch` LM tool for granular line-level edits (insert, replace, append) with multi-file batch support; partial failures report succeeded and failed files together rather than aborting
+- Enhance `read_scratch` to support batch reading from multiple files with optional line ranges in a single call
+- Enhance `write_scratch` to support batch writing to multiple files in a single call
+- Adopt `scratch:///` URI scheme consistently across all LM tools
+
 ## [0.6.3]
 
 - Hotfix to use bundled ripgrep from VSCode

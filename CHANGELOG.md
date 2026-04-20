@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1]
+
+- Refactor LM tools for improved consistency and error handling
+- Rename `edit_scratch` to `edit_scratches` and `write_scratch` to `write_scratches` for naming consistency
+- Fix URI output format to consistently use `scratch:///` scheme across all tools
+- Enhance documentation for partial success handling in batch operations
+- Add comprehensive test coverage for LM tools
+- Update dependencies
+
 ## [0.7.0]
 
 - Add `get_scratch_outline` LM tool for navigating document structure with line numbers

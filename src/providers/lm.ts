@@ -2,7 +2,7 @@ import { Minimatch } from "minimatch";
 import * as vscode from "vscode";
 import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult, Uri } from "vscode";
 import { DisposableContainer } from "../util/containers";
-import { map, prop, zip } from "../util/fu";
+import { map, prop, sort } from "../util/fu";
 import { asPromise } from "../util/promises";
 import { splitWords, strip } from "../util/text";
 import { ensureUri, normalizeFilter, uriPath } from "../util/uri";
@@ -10,18 +10,18 @@ import { ScratchFileSystemProvider } from "./fs";
 import { SearchIndexProvider, SearchOptions } from "./search";
 import { ScratchTreeProvider } from "./tree";
 
+const LINE_SPLIT_REGEX = /\r?\n/;
+
 type ListScratchesOptions = {
   filter?: string;
 };
 
-type ReadScratchRequest = {
-  uri: string | Uri;
-  lineFrom?: number;
-  lineTo?: number;
-};
-
 type ReadScratchOptions = {
-  reads: ReadScratchRequest[];
+  reads: {
+    uri: string | Uri;
+    lineFrom?: number;
+    lineTo?: number;
+  }[];
 };
 
 type OutlineOptions = {
@@ -34,13 +34,103 @@ type ReplaceOp = { op: "replace"; lineFrom: number; lineTo: number; content: str
 type AppendOp = { op: "append"; content: string };
 type ScratchEditOp = InsertOp | ReplaceOp | AppendOp;
 
-type FileEdits = {
-  uri: string | Uri;
-  edits: ScratchEditOp[];
-};
+/**
+ * Base interface for validated edit operations with polymorphic application.
+ */
+interface Edit {
+  range(): [number, number];
+  apply(lines: string[]): void;
+}
+
+/**
+ * Validated insert operation that can be applied to a lines array.
+ */
+class Insert implements Edit {
+  constructor(
+    private readonly line: number,
+    private readonly content: string,
+  ) {}
+
+  static validate(op: InsertOp, lineCount: number): string[] | Insert {
+    const errors = [];
+    if (op.line < 1) errors.push(`insert op: line must be ≥ 1 (got ${op.line})`);
+    if (op.line > lineCount + 1) {
+      errors.push(
+        `insert op: line (${op.line}) exceeds file length (${lineCount} lines); use append op or line ${lineCount + 1} to add after the last line`,
+      );
+    }
+    return errors.length > 0 ? errors : new Insert(op.line, op.content);
+  }
+
+  range(): [number, number] {
+    return [this.line, this.line];
+  }
+
+  apply(lines: string[]): void {
+    const at = Math.min(this.line - 1, lines.length);
+    lines.splice(at, 0, ...this.content.split(LINE_SPLIT_REGEX));
+  }
+}
+
+/**
+ * Validated replace operation that can be applied to a lines array.
+ */
+class Replace implements Edit {
+  constructor(
+    private readonly lineFrom: number,
+    private readonly lineTo: number,
+    private readonly content: string,
+  ) {}
+
+  static validate(op: ReplaceOp, lineCount: number): string[] | Replace {
+    const errors = [];
+    if (op.lineFrom < 1) errors.push(`replace op: lineFrom must be ≥ 1 (got ${op.lineFrom})`);
+    if (op.lineFrom > op.lineTo) {
+      errors.push(`replace op: lineFrom (${op.lineFrom}) must be ≤ lineTo (${op.lineTo})`);
+    }
+    if (op.lineFrom > lineCount) {
+      errors.push(`replace op: lineFrom (${op.lineFrom}) exceeds file length (${lineCount} lines)`);
+    }
+    if (op.lineTo > lineCount) {
+      errors.push(`replace op: lineTo (${op.lineTo}) exceeds file length (${lineCount} lines)`);
+    }
+    return errors.length > 0 ? errors : new Replace(op.lineFrom, op.lineTo, op.content);
+  }
+
+  range(): [number, number] {
+    return [this.lineFrom, this.lineTo];
+  }
+
+  apply(lines: string[]): void {
+    const from = this.lineFrom - 1;
+    const count = this.lineTo - this.lineFrom + 1;
+    const replacement = this.content === "" ? [] : this.content.split(LINE_SPLIT_REGEX);
+    lines.splice(from, count, ...replacement);
+  }
+}
+
+/**
+ * Validated append operation that can be applied to a lines array.
+ */
+class Append implements Edit {
+  constructor(private readonly content: string) {}
+
+  range(): [number, number] {
+    return [Infinity, Infinity];
+  }
+
+  apply(lines: string[]): void {
+    if (this.content !== "") {
+      lines.push(...this.content.split(LINE_SPLIT_REGEX));
+    }
+  }
+}
 
 type EditScratchOptions = {
-  edits: FileEdits[];
+  edits: {
+    uri: string | Uri;
+    edits: ScratchEditOp[];
+  }[];
 };
 
 export type RenameScratchOptions = {
@@ -57,68 +147,203 @@ type SymbolProvider = (
 
 const defaultSymbolProvider: SymbolProvider = async uri => {
   await vscode.workspace.openTextDocument(uri);
-  return vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>(
-    "vscode.executeDocumentSymbolProvider",
-    uri,
-  );
+  const symbols = await vscode.commands.executeCommand<
+    (vscode.DocumentSymbol | vscode.SymbolInformation)[]
+  >("vscode.executeDocumentSymbolProvider", uri);
+  return Array.isArray(symbols) ? symbols : undefined;
 };
 
-const formatLineRange = (startLine: number, endLine: number): string =>
-  startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`;
+/**
+ * Retries a promise-returning function if the result is empty, up to the specified
+ * number of retries with a delay between attempts.
+ */
+const retryOnEmpty = async <T>(
+  fn: () => Promise<T[] | undefined>,
+  delayMs: number,
+  retries: number = 1,
+): Promise<T[]> => {
+  const result = await fn();
+  if (result && result.length > 0) return result;
+  if (retries === 0) return [];
+  await new Promise<void>(resolve => setTimeout(resolve, delayMs));
+  return retryOnEmpty(fn, delayMs, retries - 1);
+};
 
-function formatDocumentSymbols(
+const formatRange = (lineFrom: number | undefined, lineTo: number | undefined) =>
+  lineFrom !== undefined && lineTo !== undefined
+    ? lineFrom === lineTo
+      ? `line ${lineFrom}`
+      : `lines ${lineFrom}-${lineTo}`
+    : lineFrom !== undefined
+      ? `from line ${lineFrom}`
+      : lineTo !== undefined
+        ? `lines 1-${lineTo}`
+        : "";
+
+/**
+ * Formats a vscode.Range as "line X" for single-line ranges or "lines X-Y" for
+ * multi-line ranges. Line numbers are 1-based to match typical editor
+ * conventions and the output of get_scratch_outline.
+ */
+const formatCodeRange = (range: vscode.Range): string =>
+  formatRange(range.start.line + 1, range.end.line + 1);
+
+/**
+ * Recursively formats a tree of DocumentSymbols up to the specified max depth.
+ * Each symbol is formatted as "name (kind, line range)". Children are indented
+ * by two spaces per level. Symbols beyond the max depth are omitted.
+ */
+const formatDocumentSymbols = (
   symbols: vscode.DocumentSymbol[],
   maxDepth: number,
-  currentDepth: number,
-): string {
-  if (currentDepth >= maxDepth) {
-    return "";
-  }
-  const lines: string[] = [];
-  for (const symbol of symbols) {
-    const indent = "  ".repeat(currentDepth);
-    const kind = vscode.SymbolKind[symbol.kind];
-    const startLine = symbol.range.start.line + 1;
-    const endLine = symbol.range.end.line + 1;
-    lines.push(`${indent}${symbol.name} (${kind}, ${formatLineRange(startLine, endLine)})`);
-    const children: vscode.DocumentSymbol[] = symbol.children ?? [];
-    if (children.length > 0) {
-      const childOutput = formatDocumentSymbols(children, maxDepth, currentDepth + 1);
-      if (childOutput) {
-        lines.push(childOutput);
-      }
-    }
-  }
-  return lines.join("\n");
-}
+  currentDepth = 0,
+): string[] =>
+  currentDepth >= maxDepth
+    ? []
+    : symbols.flatMap(({ kind, name, range, children }) => {
+        const indent = "  ".repeat(currentDepth);
+        const line = `${indent}${name} (${vscode.SymbolKind[kind]}, ${formatCodeRange(range)})`;
+        return [line, ...formatDocumentSymbols(children ?? [], maxDepth, currentDepth + 1)];
+      });
 
-function filterSymbolInfoByDepth(
-  symbols: vscode.SymbolInformation[],
-  maxDepth: number,
-): vscode.SymbolInformation[] {
-  // Assign depths using containerName chains. Symbols without a containerName are depth 0.
+/**
+ * Filters a flat list of SymbolInformation to those within the specified max
+ * depth, determined by containerName chains and formats into a flat list of
+ * "name (kind, line range)" up to the specified max depth.
+ * Symbols without a containerName are depth 0, their direct children are depth
+ * 1, and so on. This allows us to apply a depth limit to SymbolInformation
+ * results, which don't have an inherent hierarchy like DocumentSymbols do.
+ *
+ * Uses composite keys (containerName::name::location) to handle duplicate symbol
+ * names correctly. Computes depths in a single pass using an iterative BFS-like
+ * approach for O(N) performance.
+ */
+const formatSymbolInfos = (symbols: vscode.SymbolInformation[], maxDepth: number): string[] => {
+  // Create composite key to handle symbols with duplicate names
+  const makeKey = (s: vscode.SymbolInformation) =>
+    `${s.containerName ?? ""}::${s.name}::${s.location.uri.toString()}:${s.location.range.start.line}`;
+
+  // Build depth map using iterative approach (O(N) instead of O(N×D))
   const depthMap = new Map<string, number>();
+
+  // Initialize root symbols (no container) at depth 0
   for (const s of symbols) {
     if (!s.containerName) {
-      depthMap.set(s.name, 0);
+      depthMap.set(makeKey(s), 0);
     }
   }
-  let changed = true;
-  while (changed) {
-    changed = false;
+
+  // Iteratively assign depths level by level until no new symbols are added
+  let currentDepth = 0;
+  let hasChanges = true;
+  while (hasChanges) {
+    hasChanges = false;
     for (const s of symbols) {
-      if (depthMap.has(s.name)) {
-        continue;
-      }
-      const parentDepth = depthMap.get(s.containerName);
-      if (parentDepth !== undefined) {
-        depthMap.set(s.name, parentDepth + 1);
-        changed = true;
+      const key = makeKey(s);
+      if (!depthMap.has(key) && s.containerName) {
+        // Check if parent container is at currentDepth
+        const parentKey = symbols
+          .filter(p => p.name === s.containerName)
+          .map(makeKey)
+          .find(pk => depthMap.get(pk) === currentDepth);
+
+        if (parentKey) {
+          depthMap.set(key, currentDepth + 1);
+          hasChanges = true;
+        }
       }
     }
+    currentDepth++;
   }
-  return symbols.filter(s => (depthMap.get(s.name) ?? 0) < maxDepth);
-}
+
+  return symbols
+    .filter(s => (depthMap.get(makeKey(s)) ?? 0) < maxDepth)
+    .map(s => `${s.name} (${vscode.SymbolKind[s.kind]}, ${formatCodeRange(s.location.range)})`);
+};
+
+/**
+ * Detects overlapping operations and returns error messages.
+ */
+const findOverlaps = (ops: Edit[]): string[] =>
+  ops.reduce<string[]>((errors, curr, i, sorted) => {
+    if (i === 0) return errors; // No previous op to compare with for the first one
+    const prev = sorted[i - 1];
+    const [, prevEnd] = prev.range();
+    const [currStart] = curr.range();
+
+    if (currStart <= prevEnd) {
+      errors.push(
+        `ops ${i} and ${i + 1} target overlapping lines (${prev.range().join("-")} and ${curr.range().join("-")})`,
+      );
+    }
+    return errors;
+  }, []);
+
+/**
+ * Applies all edit operations to the content, validating first.
+ * Returns the modified lines array.
+ */
+const applyEdits = (lines: string[], ops: ScratchEditOp[]): string[] => {
+  const validated = ops.map(op =>
+    op.op === "insert"
+      ? Insert.validate(op, lines.length)
+      : op.op === "replace"
+        ? Replace.validate(op, lines.length)
+        : new Append(op.content),
+  );
+  const edits = validated
+    .filter((v): v is Insert | Replace | Append => !Array.isArray(v))
+    .toSorted(sort.byNumericValue(op => op.range()[0]));
+
+  // Check for overlaps among line-based operations only (not appends)
+  const errors = validated.filter((v): v is string[] => Array.isArray(v)).flat();
+  const lineBasedOps = edits.filter(
+    (op): op is Insert | Replace => op instanceof Insert || op instanceof Replace,
+  );
+  const overlaps = findOverlaps(lineBasedOps);
+  if (errors.length > 0 || overlaps.length > 0) {
+    throw new Error(`edit_scratch: ${[...errors, ...overlaps].join("; ")}`);
+  }
+
+  edits.forEach(op => op.apply(lines));
+  return lines;
+};
+
+/**
+ * Executes a batch of operations using Promise.allSettled and formats the results.
+ * Returns a message listing succeeded and failed operations.
+ */
+const formatBatchResults = <T>(
+  results: PromiseSettledResult<T>[],
+  paths: string[],
+  formatSuccess: (successfulPaths: string[], values: T[]) => string,
+): string => {
+  if (results.length !== paths.length) {
+    throw new Error(
+      `formatBatchResults: results (${results.length}) and paths (${paths.length}) must have same length`,
+    );
+  }
+
+  const succeeded = results.flatMap((r, i) =>
+    r.status === "fulfilled" ? [{ path: paths[i], value: r.value }] : [],
+  );
+
+  const failed = results
+    .map((r, i) => (r.status === "rejected" ? `  - ${paths[i]}: ${String(r.reason)}` : undefined))
+    .filter((msg): msg is string => msg !== undefined);
+
+  return [
+    succeeded.length > 0
+      ? formatSuccess(
+          succeeded.map(s => s.path),
+          succeeded.map(s => s.value),
+        )
+      : "",
+    failed.length > 0 ? `Failed:\n${failed.join("\n")}` : "",
+  ]
+    .filter(s => s !== "")
+    .join("\n");
+};
 
 export class ScratchLmToolkit extends DisposableContainer {
   constructor(
@@ -138,209 +363,85 @@ export class ScratchLmToolkit extends DisposableContainer {
     return this.treeProvider
       .getFlatTree()
       .then(map(prop("uri")))
-      .then(uris =>
-        uris
+      .then(uris => {
+        const filtered = uris
           .map(uri => strip(uriPath(uri), ["/"]))
           .filter(uri => pattern?.match(uri) ?? true)
-          .filter(uri => (prefix ? uri.startsWith(prefix) : true))
-          .join("\n"),
-      );
+          .filter(uri => (prefix ? uri.startsWith(prefix) : true));
+
+        return filtered.length > 0 ? filtered.join("\n") : filter ? "" : "No scratches found.";
+      });
   };
 
   readScratch = ({ reads }: ReadScratchOptions): Promise<string> =>
-    Promise.all(
-      reads.map(({ uri, lineFrom, lineTo }) => {
-        const resolvedUri = ensureUri(uri);
-        return this.fs
-          .readFile(resolvedUri)
-          .then(bytes => new TextDecoder().decode(bytes))
-          .then(content => {
-            // lineFrom and lineTo are 1-based inclusive, matching get_scratch_outline output
-            const lines =
-              lineFrom !== undefined || lineTo !== undefined
-                ? content
-                    .split(/\r?\n/)
-                    .slice(lineFrom !== undefined ? lineFrom - 1 : 0, lineTo)
-                    .join("\n")
-                : content;
-            const rangeLabel =
-              lineFrom !== undefined && lineTo !== undefined
-                ? lineFrom === lineTo
-                  ? `, line ${lineFrom}`
-                  : `, lines ${lineFrom}-${lineTo}`
-                : lineFrom !== undefined
-                  ? `, from line ${lineFrom}`
-                  : lineTo !== undefined
-                    ? `, lines 1-${lineTo}`
-                    : "";
-            return `[scratch:///${strip(uriPath(resolvedUri), ["/"])}${rangeLabel}]\n${lines}`;
-          });
-      }),
-    ).then(results => results.join("\n---\n"));
-
-  getScratchOutline = async ({ uri, depth = 2 }: OutlineOptions): Promise<string> => {
-    const resolvedUri = ensureUri(uri);
-    let symbols = await asPromise(this.symbolProvider(resolvedUri));
-    if (!symbols || symbols.length === 0) {
-      await new Promise<void>(resolve => setTimeout(resolve, this.retryDelayMs));
-      symbols = await asPromise(this.symbolProvider(resolvedUri));
-    }
-    if (!symbols || symbols.length === 0) {
-      return "No symbols found.";
-    }
-    if ("children" in symbols[0]) {
-      const result = formatDocumentSymbols(symbols as vscode.DocumentSymbol[], depth, 0);
-      return result || "No symbols found.";
-    }
-    // SymbolInformation — flat list; apply depth filtering via containerName chains
-    const filtered = filterSymbolInfoByDepth(symbols as vscode.SymbolInformation[], depth);
-    if (filtered.length === 0) {
-      return "No symbols found.";
-    }
-    return filtered
-      .map(
-        s =>
-          `${s.name} (${vscode.SymbolKind[s.kind]}, ${formatLineRange(s.location.range.start.line + 1, s.location.range.end.line + 1)})`,
-      )
-      .join("\n");
-  };
-
-  editScratch = ({ edits }: EditScratchOptions): Promise<string> =>
     Promise.allSettled(
-      edits.map(({ uri, edits: ops }) => {
-        const resolvedUri = ensureUri(uri);
-        const path = strip(uriPath(resolvedUri), ["/"]);
-        return this.fs
-          .readFile(resolvedUri)
-          .then(bytes => new TextDecoder().decode(bytes))
+      reads.map(({ uri, lineFrom, lineTo }) =>
+        this.fs
+          .readLines(ensureUri(uri))
+          // lineFrom and lineTo are 1-based inclusive, matching get_scratch_outline output
+          .then(lines => lines.slice((lineFrom ?? 1) - 1, lineTo).join("\n"))
           .then(content => {
-            const lines = content.split(/\r?\n/);
-            const appends = ops.filter((op): op is AppendOp => op.op === "append");
-            const lineOps = ops.filter((op): op is InsertOp | ReplaceOp => op.op !== "append");
-            // Validate all line ops before mutating anything.
-            const errors: string[] = [];
-            for (const op of lineOps) {
-              if (op.op === "insert") {
-                if (op.line < 1) {
-                  errors.push(`insert op: line must be ≥ 1 (got ${op.line})`);
-                } else if (op.line > lines.length + 1) {
-                  errors.push(
-                    `insert op: line (${op.line}) exceeds file length (${lines.length} lines); use append op or line ${lines.length + 1} to add after the last line`,
-                  );
-                }
-              } else {
-                if (op.lineFrom < 1) {
-                  errors.push(`replace op: lineFrom must be ≥ 1 (got ${op.lineFrom})`);
-                } else if (op.lineFrom > op.lineTo) {
-                  errors.push(
-                    `replace op: lineFrom (${op.lineFrom}) must be ≤ lineTo (${op.lineTo})`,
-                  );
-                } else if (op.lineFrom > lines.length) {
-                  errors.push(
-                    `replace op: lineFrom (${op.lineFrom}) exceeds file length (${lines.length} lines)`,
-                  );
-                } else if (op.lineTo > lines.length) {
-                  errors.push(
-                    `replace op: lineTo (${op.lineTo}) exceeds file length (${lines.length} lines)`,
-                  );
-                }
-              }
-            }
-            // Detect overlapping op ranges so callers get an explicit error
-            // instead of silent data corruption.
-            const rangeOf = (op: InsertOp | ReplaceOp): [number, number] =>
-              op.op === "insert" ? [op.line, op.line] : [op.lineFrom, op.lineTo];
-            for (let i = 0; i < lineOps.length; i++) {
-              for (let j = i + 1; j < lineOps.length; j++) {
-                const [a1, a2] = rangeOf(lineOps[i]);
-                const [b1, b2] = rangeOf(lineOps[j]);
-                if (a1 <= b2 && b1 <= a2) {
-                  errors.push(
-                    `ops ${i + 1} and ${j + 1} target overlapping lines (${a1}–${a2} and ${b1}–${b2})`,
-                  );
-                }
-              }
-            }
-            if (errors.length > 0) {
-              throw new Error(`edit_scratch: ${errors.join("; ")}`);
-            }
-            // Apply line-based ops bottom-to-top so earlier edits don't shift
-            // the line numbers of later ones.
-            lineOps
-              .slice()
-              .sort((a, b) => {
-                const aLine = a.op === "insert" ? a.line : a.lineFrom;
-                const bLine = b.op === "insert" ? b.line : b.lineFrom;
-                return bLine - aLine;
-              })
-              .forEach(op => {
-                if (op.op === "insert") {
-                  const at = Math.min(op.line - 1, lines.length);
-                  lines.splice(at, 0, ...op.content.split(/\r?\n/));
-                } else {
-                  const from = op.lineFrom - 1;
-                  const count = op.lineTo - op.lineFrom + 1;
-                  // empty content means delete the range
-                  const replacement = op.content === "" ? [] : op.content.split(/\r?\n/);
-                  lines.splice(from, count, ...replacement);
-                }
-              });
-            // An empty-string append would add a spurious trailing blank line;
-            // treat it as a no-op so callers don't have to guard against it.
-            appends
-              .filter(op => op.content !== "")
-              .forEach(op => lines.push(...op.content.split(/\r?\n/)));
-            return new TextEncoder().encode(lines.join("\n"));
-          })
-          .then(bytes => this.fs.writeFile(resolvedUri, bytes, { create: false, overwrite: true }))
-          .then(
-            () => ({ ok: true as const, path }),
-            (err: unknown) => ({ ok: false as const, path, err }),
+            const path = strip(uriPath(ensureUri(uri)), ["/"]);
+            const range = formatRange(lineFrom, lineTo);
+            return `[scratch:///${path}${range ? `, ${range}` : ""}]\n${content}`;
+          }),
+      ),
+    ).then(results =>
+      formatBatchResults(
+        results,
+        reads.map(({ uri }) => `scratch:///${strip(uriPath(ensureUri(uri)), ["/"])}`),
+        (_paths, contents) => contents.join("\n---\n"),
+      ),
+    );
+
+  getScratchOutline = async ({ uri, depth = 2 }: OutlineOptions): Promise<string> =>
+    retryOnEmpty(() => asPromise(this.symbolProvider(ensureUri(uri))), this.retryDelayMs).then(
+      symbols => {
+        if (symbols.length === 0) return "No symbols found.";
+
+        const lines =
+          "children" in symbols[0]
+            ? formatDocumentSymbols(symbols as vscode.DocumentSymbol[], depth)
+            : formatSymbolInfos(symbols as vscode.SymbolInformation[], depth);
+
+        return lines.length > 0 ? lines.join("\n") : "No symbols found.";
+      },
+    );
+
+  editScratches = ({ edits }: EditScratchOptions): Promise<string> =>
+    Promise.allSettled(
+      edits.map(({ uri, edits }) => {
+        const resolvedUri = ensureUri(uri);
+        return this.fs
+          .readLines(resolvedUri)
+          .then(lines => applyEdits(lines, edits))
+          .then(lines =>
+            this.fs.writeLines(resolvedUri, lines, { create: false, overwrite: true }),
           );
       }),
-    ).then(results => {
-      const succeeded = results
-        .filter(
-          (r): r is PromiseFulfilledResult<{ ok: true; path: string }> =>
-            r.status === "fulfilled" && r.value.ok,
-        )
-        .map(r => r.value.path);
-      const failed = results
-        .filter(
-          (r): r is PromiseFulfilledResult<{ ok: false; path: string; err: unknown }> =>
-            r.status === "fulfilled" && !r.value.ok,
-        )
-        .map(
-          r =>
-            `  - ${r.value.path}: ${r.value.err instanceof Error ? r.value.err.message : String(r.value.err)}`,
-        );
-      const lines: string[] = [];
-      if (succeeded.length > 0) {
-        lines.push(`Edited: ${succeeded.join(", ")}`);
-      }
-      if (failed.length > 0) {
-        lines.push(`Failed:\n${failed.join("\n")}`);
-      }
-      return lines.join("\n");
-    });
-
-  writeScratch = (scratches: Record<string, string>) => {
-    const writes = Object.entries(scratches).map(([uri, content]) =>
-      this.fs.writeFile(ensureUri(uri), content, {
-        create: true,
-        overwrite: true,
-      }),
+    ).then(results =>
+      formatBatchResults(
+        results,
+        edits.map(({ uri }) => `scratch:///${strip(uriPath(ensureUri(uri)), ["/"])}`),
+        paths => `Edited: ${paths.join(", ")}`,
+      ),
     );
-    return Promise.allSettled(writes).then(results => {
-      if (results.every(result => result.status === "fulfilled")) {
-        return "Scratches written successfully.";
-      }
-      const failures = zip(Object.keys(scratches), results)
-        .filter(([, result]) => result.status === "rejected")
-        .map(([uri, result]) => `  - ${uri}: ${(result as PromiseRejectedResult).reason}`);
-      return `Failed to write the following scratches:\n${failures.join("\n")}`;
-    });
-  };
+
+  writeScratches = (scratches: Record<string, string>) =>
+    Promise.allSettled(
+      Object.entries(scratches).map(([uri, content]) =>
+        this.fs.writeFile(ensureUri(uri), content, {
+          create: true,
+          overwrite: true,
+        }),
+      ),
+    ).then(results =>
+      formatBatchResults(
+        results,
+        Object.keys(scratches).map(uri => `scratch:///${strip(uriPath(ensureUri(uri)), ["/"])}`),
+        paths => `Scratches written: ${paths.join(", ")}`,
+      ),
+    );
 
   renameScratch = ({ oldUri, newUri }: RenameScratchOptions) =>
     this.fs.rename(ensureUri(oldUri), ensureUri(newUri), { overwrite: true });
@@ -368,7 +469,11 @@ export class ScratchLmToolkit extends DisposableContainer {
 }
 
 const maybeCall = <T, U>(val: T | ((arg: U) => T), arg: U): T => {
-  return typeof val === "function" ? (val as (arg: U) => T)(arg) : val;
+  // Type guard: if val is a function, it must be (arg: U) => T since that's the only function type in the union
+  if (typeof val === "function") {
+    return (val as (arg: U) => T)(arg);
+  }
+  return val;
 };
 
 const toToolResult = (res: MaybeArray<LmResponsePart | string | void>) => {

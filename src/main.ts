@@ -76,7 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
     registerTool("get_scratch_outline", lmToolset.getScratchOutline, {
       invocationMessage: ({ uri }) => `Reading structure of ${uri}`,
     }),
-    registerTool("edit_scratch", lmToolset.editScratch, {
+    registerTool("edit_scratch", lmToolset.editScratches, {
       invocationMessage: ({ edits }) =>
         edits.length === 1 ? `Editing ${edits[0].uri}` : `Editing ${edits.length} scratches`,
       confirmationMessage: ({ edits }) => ({
@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
         message: edits.map(e => String(e.uri)).join("\n"),
       }),
     }),
-    registerTool("write_scratch", lmToolset.writeScratch, {
+    registerTool("write_scratch", lmToolset.writeScratches, {
       invocationMessage: scratches => {
         const uris = Object.keys(scratches);
         return uris.length === 1 ? `Writing ${uris[0]}` : `Writing ${uris.length} scratches`;

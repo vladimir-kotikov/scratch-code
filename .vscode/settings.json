@@ -12,5 +12,8 @@
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit"
     }
+  },
+  "chat.tools.terminal.autoApprove": {
+    "npx extest": true
   }
 }

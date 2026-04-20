@@ -197,7 +197,36 @@ Read both files back and verify:
 
 ---
 
-### Step 9 — Edge cases: error handling
+### Step 9 — Test partial success (one valid, one invalid edit)
+
+In a single call, attempt to edit both test files where one edit is valid and one is invalid:
+
+```json
+{
+  "edits": [
+    {
+      "uri": "scratch:///ai-test/edit-test.md",
+      "edits": [{ "op": "append", "content": "\nValid append" }]
+    },
+    {
+      "uri": "scratch:///ai-test/edit-test.ts",
+      "edits": [{ "op": "replace", "lineFrom": 99, "lineTo": 100, "content": "invalid" }]
+    }
+  ]
+}
+```
+
+**Correctness checks:**
+
+- [ ] The response includes `Edited:` section listing `edit-test.md`.
+- [ ] The response includes `Failed:` section listing `edit-test.ts` with an error about `lineFrom` exceeding file length.
+- [ ] `edit-test.md` was successfully modified (append was applied).
+- [ ] `edit-test.ts` was **not** modified (remains unchanged due to validation error).
+- [ ] The error message is actionable and identifies the specific problem.
+
+---
+
+### Step 10 — Edge cases: error handling
 
 Using `edit-test.ts` (currently 7 lines after Steps 7–8), verify that the
 tool rejects bad inputs rather than silently corrupting the file. After each
@@ -264,14 +293,14 @@ call, read the file back to confirm it was **not** modified.
 
 ---
 
-### Step 10 — Cleanup
+### Step 11 — Cleanup
 
 Delete both test files using the available deletion tool or by overwriting
 with empty content, then confirm they no longer appear in `list_scratches`.
 
 ---
 
-### Step 11 — Usability assessment
+### Step 12 — Usability assessment
 
 Answer these questions in your report:
 
@@ -286,12 +315,15 @@ Answer these questions in your report:
    a range? Would a dedicated `delete` op be clearer?
 4. **Batch value** — Did the two-file batch in Step 8 feel like a genuine
    improvement over two separate calls? Were there any surprises?
-5. **Error cases** — Did you encounter any errors? If so, were the messages
+5. **Partial success** — In Step 9, was the partial success handling clear?
+   Was it valuable that the valid edit was applied even though the invalid one
+   failed? Could you easily identify which file succeeded and which failed?
+6. **Error cases** — Did you encounter any errors? If so, were the messages
    actionable?
 
 ---
 
-### Step 12 — Description review
+### Step 13 — Description review
 
 Re-read the tool's `modelDescription`. Assess:
 
@@ -304,15 +336,16 @@ Re-read the tool's `modelDescription`. Assess:
       `get_scratch_outline`) stated explicitly?
 - [ ] Do the examples cover: insert, replace, delete, append, and multi-file
       batch?
+- [ ] Is the partial success behavior documented (successful edits confirmed, failures listed separately)?
 - [ ] Is the "file must already exist" constraint documented?
 
 ---
 
-### Step 13 — Write your findings
+### Step 14 — Write your findings
 
 Produce a short report covering:
 
 1. Whether all steps passed or failed, with any unexpected output.
-2. Usability answers from Step 11.
-3. Description quality verdict from Step 12.
+2. Usability answers from Step 12.
+3. Description quality verdict from Step 13.
 4. An overall pass/fail verdict for the tool.

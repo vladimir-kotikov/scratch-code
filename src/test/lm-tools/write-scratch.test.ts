@@ -12,7 +12,7 @@ describe("write_scratch tool (integration)", () => {
     const result = await invoke("write_scratch", {
       [fix.uri("created.md")]: "# Created\n\nContent here.",
     });
-    assert.ok(result.toLowerCase().includes("success"), result);
+    assert.ok(result.toLowerCase().includes("written"), result);
     assert.strictEqual(await fix.read("created.md"), "# Created\n\nContent here.");
   });
 
@@ -27,7 +27,7 @@ describe("write_scratch tool (integration)", () => {
       [fix.uri("batch-a.md")]: "file A",
       [fix.uri("batch-b.md")]: "file B",
     });
-    assert.ok(result.toLowerCase().includes("success"), result);
+    assert.ok(result.toLowerCase().includes("written"), result);
     assert.strictEqual(await fix.read("batch-a.md"), "file A");
     assert.strictEqual(await fix.read("batch-b.md"), "file B");
   });

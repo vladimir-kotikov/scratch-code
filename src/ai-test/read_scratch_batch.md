@@ -91,7 +91,27 @@ Call `read_scratch` with **two items in `reads`** in a single call:
 
 ---
 
-### Step 5 — Test two ranges from the same file
+### Step 5 — Test partial success (one valid, one invalid file)
+
+Call `read_scratch` with **two items in `reads`** where one file exists and one doesn't:
+
+```json
+{
+  "reads": [{ "uri": "<md-file>" }, { "uri": "scratch:///nonexistent-file.txt" }]
+}
+```
+
+**Correctness checks:**
+
+- [ ] Does the response include the content from the valid file?
+- [ ] Does the response include a `Failed:` section listing the nonexistent file?
+- [ ] Is the error message for the failed file actionable (e.g., "File not found")?
+- [ ] Can you still access the successful read despite the partial failure?
+- [ ] Are the successful content and failed section clearly separated?
+
+---
+
+### Step 6 — Test two ranges from the same file
 
 Call `read_scratch` with **two entries pointing to the same file**, each with a
 different range:
@@ -112,7 +132,7 @@ different range:
 
 ---
 
-### Step 6 — Test edge-case range labels
+### Step 7 — Test edge-case range labels
 
 Using the Markdown file, make calls to verify the range label format:
 
@@ -125,7 +145,7 @@ Using the Markdown file, make calls to verify the range label format:
 
 ---
 
-### Step 7 — Usability assessment
+### Step 8 — Usability assessment
 
 After running the above, answer these questions in your report:
 
@@ -138,12 +158,15 @@ After running the above, answer these questions in your report:
 3. **Interaction with outline** — How naturally does the 1-based inclusive line
    numbering of `read_scratch` compose with the line numbers reported by
    `get_scratch_outline`? Did you encounter any off-by-one confusion?
-4. **When to use** — When would you use a multi-item `reads` call versus
+4. **Partial success** — In Step 5, was the partial success handling clear?
+   Could you easily distinguish between successful reads and failures? Was the
+   error reporting sufficient to understand what went wrong?
+5. **When to use** — When would you use a multi-item `reads` call versus
    calling `read_scratch` separately for each file?
 
 ---
 
-### Step 8 — Description review
+### Step 9 — Description review
 
 Re-read the tool's `modelDescription`. Assess:
 
@@ -155,6 +178,7 @@ Re-read the tool's `modelDescription`. Assess:
 - [ ] Does the description explicitly mention that multiple ranges from the same
       file are supported?
 - [ ] Is the output format (labelled sections, blank-line separator) documented?
+- [ ] Is the partial success behavior documented (successful reads shown, failures listed separately)?
 - [ ] Do the examples cover: full read, range, `lineFrom`-only, `lineTo`-only,
       and batch?
 
@@ -165,14 +189,14 @@ Re-read the tool's `modelDescription`. Assess:
 
 ---
 
-### Step 9 — Write your findings
+### Step 10 — Write your findings
 
 Produce a short report covering:
 
 1. The two files you chose and why.
-2. Step-by-step results: for each test in Steps 3–6, state pass or fail and
+2. Step-by-step results: for each test in Steps 3–7, state pass or fail and
    include any unexpected output.
-3. Usability answers from Step 7.
-4. Description quality verdict from Step 8 — call out missing information or
+3. Usability answers from Step 8.
+4. Description quality verdict from Step 9 — call out missing information or
    suggestions for improvement.
 5. An overall pass/fail verdict for the batch read feature.

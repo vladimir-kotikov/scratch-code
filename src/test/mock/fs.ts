@@ -77,7 +77,7 @@ export class MockFS extends ScratchFileSystemProvider {
 
   writeLines = async (uri: Uri, lines: Iterable<string>): Promise<void> => {
     const name = uri.path.replace(/^\//, "");
-    const content = Array.from(lines).join("\n") + "\n";
+    const content = Array.from(lines).join("\n");
     if (this.files[name]) {
       this.files[name].content = content;
     } else {

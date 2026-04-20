@@ -20,7 +20,7 @@ const bytesToString = (buffer: Uint8Array): string => Buffer.from(buffer).toStri
 
 const isFileSystemError = (err: unknown): err is FileSystemError => err instanceof FileSystemError;
 
-const isNotFoundError = (err: unknown): boolean =>
+export const isNotFoundError = (err: unknown): boolean =>
   isFileSystemError(err) && err.code === "FileNotFound";
 
 export const isFileExistsError = (err: unknown): boolean =>
@@ -114,8 +114,14 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
 
   readLines = (uri: Uri) => this.readFile(uri).then(bytesToString).then(call("split", "\n"));
 
-  writeLines = (uri: Uri, lines: Iterable<string>) =>
-    this.writeFile(uri, Array.from(lines).join("\n") + "\n");
+  writeLines = (
+    uri: Uri,
+    lines: Iterable<string>,
+    options: {
+      readonly create: boolean;
+      readonly overwrite: boolean;
+    } = { create: true, overwrite: true },
+  ) => this.writeFile(uri, Array.from(lines).join("\n"), options);
 
   writeFile = (
     uri: Uri,
@@ -153,8 +159,8 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
           .then(() => this._onDidChangeFile.fire([event]))
           .catch(
             whenError(isFileSystemError, err => {
-              // Make sure the real fs uri is not leaked
-              (err as FileSystemError).message = toFilesystemUri(this.scratchDir, uri).toString();
+              // Make sure the real fs uri is not leaked in the error message
+              (err as FileSystemError).message = uri.toString();
               throw err;
             }),
           ),

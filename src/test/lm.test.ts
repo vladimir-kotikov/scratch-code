@@ -291,7 +291,7 @@ describe("ScratchLmToolkit", () => {
 
     it("appends content to the file", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "line six" }] }],
       });
       assert.strictEqual(
@@ -302,7 +302,7 @@ describe("ScratchLmToolkit", () => {
 
     it("inserts content before a given line (1-based)", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 2, content: "inserted" }] }],
       });
       assert.strictEqual(
@@ -313,7 +313,7 @@ describe("ScratchLmToolkit", () => {
 
     it("inserts at line length + 1 appends as the new last line", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 6, content: "line six" }] }],
       });
       assert.strictEqual(
@@ -323,7 +323,7 @@ describe("ScratchLmToolkit", () => {
     });
     it("inserts before line 1 prepends to the file", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 1, content: "header" }] }],
       });
       assert.strictEqual(
@@ -334,7 +334,7 @@ describe("ScratchLmToolkit", () => {
 
     it("replaces a single line", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -350,7 +350,7 @@ describe("ScratchLmToolkit", () => {
 
     it("replaces a multi-line range", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -363,7 +363,7 @@ describe("ScratchLmToolkit", () => {
 
     it("deletes lines when replace content is empty", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [
           { uri: Uri.parse(URI), edits: [{ op: "replace", lineFrom: 2, lineTo: 4, content: "" }] },
         ],
@@ -373,7 +373,7 @@ describe("ScratchLmToolkit", () => {
 
     it("applies multiple ops in natural top-to-bottom order without line shift", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -389,7 +389,7 @@ describe("ScratchLmToolkit", () => {
 
     it("applies append after all line ops regardless of order", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -415,7 +415,7 @@ describe("ScratchLmToolkit", () => {
       const treeProvider = new ScratchTreeProvider(mockFs);
       const toolkit = new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
 
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -438,15 +438,15 @@ describe("ScratchLmToolkit", () => {
 
     it("returns the edited path(s) on success", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "x" }] }],
       });
-      assert.strictEqual(result, "Edited: notes.md");
+      assert.strictEqual(result, "Edited: scratch:///notes.md");
     });
 
     it("reports error when insert line is 0", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 0, content: "bad" }] }],
       });
       assert.ok(result.includes("line must be ≥ 1"), `unexpected result: ${result}`);
@@ -454,7 +454,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when insert line exceeds file length + 1", async () => {
       const { toolkit } = makeEditToolkit(); // INITIAL has 5 lines
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 7, content: "bad" }] }],
       });
       assert.ok(result.includes("exceeds file length"), `unexpected result: ${result}`);
@@ -462,7 +462,7 @@ describe("ScratchLmToolkit", () => {
 
     it("inserts after the last line when line equals file length + 1", async () => {
       const { toolkit, mockFs } = makeEditToolkit(); // INITIAL has 5 lines
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "insert", line: 6, content: "appended" }] }],
       });
       assert.strictEqual(
@@ -473,7 +473,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when replace lineFrom is 0", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -486,7 +486,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when replace lineFrom > lineTo", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -502,7 +502,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when replace lineFrom exceeds file length", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -518,7 +518,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when replace lineTo exceeds file length", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -531,7 +531,7 @@ describe("ScratchLmToolkit", () => {
 
     it("reports error when two ops target overlapping lines", async () => {
       const { toolkit } = makeEditToolkit();
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           {
             uri: Uri.parse(URI),
@@ -547,7 +547,7 @@ describe("ScratchLmToolkit", () => {
 
     it("treats append with empty content as a no-op", async () => {
       const { toolkit, mockFs } = makeEditToolkit();
-      await toolkit.editScratch({
+      await toolkit.editScratches({
         edits: [{ uri: Uri.parse(URI), edits: [{ op: "append", content: "" }] }],
       });
       assert.strictEqual(await readBack(mockFs), INITIAL);
@@ -562,7 +562,7 @@ describe("ScratchLmToolkit", () => {
       const treeProvider = new ScratchTreeProvider(mockFs);
       const toolkit = new ScratchLmToolkit(mockFs, treeProvider, undefined as never);
 
-      const result = await toolkit.editScratch({
+      const result = await toolkit.editScratches({
         edits: [
           { uri: Uri.parse(URI), edits: [{ op: "append", content: "ok" }] },
           {
@@ -573,11 +573,14 @@ describe("ScratchLmToolkit", () => {
       });
 
       assert.ok(
-        result.includes("Edited:") && result.includes("notes.md"),
+        result.includes("Edited:") && result.includes("scratch:///notes.md"),
         `expected success for notes.md in: ${result}`,
       );
       assert.ok(result.includes("Failed:"), `expected failure section in: ${result}`);
-      assert.ok(result.includes("other.md"), `expected other.md mentioned in: ${result}`);
+      assert.ok(
+        result.includes("scratch:///other.md"),
+        `expected other.md mentioned in: ${result}`,
+      );
       assert.ok(result.includes("exceeds file length"), `expected error detail in: ${result}`);
       const notesBytes = await mockFs.readFile(Uri.parse(URI));
       assert.strictEqual(new TextDecoder().decode(notesBytes), INITIAL + "\nok");
@@ -696,30 +699,33 @@ describe("ScratchLmToolkit", () => {
 
     it("returns success message when writing a single scratch", async () => {
       const { toolkit } = makeWriteToolkit();
-      const result = await toolkit.writeScratch({ "scratch:///notes.md": "Hello world" });
-      assert.strictEqual(result, "Scratches written successfully.");
+      const result = await toolkit.writeScratches({ "scratch:///notes.md": "Hello world" });
+      assert.strictEqual(result, "Scratches written: scratch:///notes.md");
     });
 
     it("persists content for a single scratch", async () => {
       const { toolkit, mockFs } = makeWriteToolkit();
-      await toolkit.writeScratch({ "scratch:///notes.md": "Hello world" });
+      await toolkit.writeScratches({ "scratch:///notes.md": "Hello world" });
       const bytes = await mockFs.readFile(Uri.parse("scratch:///notes.md"));
       assert.strictEqual(new TextDecoder().decode(bytes), "Hello world");
     });
 
     it("returns success message when writing multiple scratches", async () => {
       const { toolkit } = makeWriteToolkit();
-      const result = await toolkit.writeScratch({
+      const result = await toolkit.writeScratches({
         "scratch:///a.md": "Content A",
         "scratch:///b.md": "Content B",
         "scratch:///c.md": "Content C",
       });
-      assert.strictEqual(result, "Scratches written successfully.");
+      assert.strictEqual(
+        result,
+        "Scratches written: scratch:///a.md, scratch:///b.md, scratch:///c.md",
+      );
     });
 
     it("persists content for all scratches in a batch", async () => {
       const { toolkit, mockFs } = makeWriteToolkit();
-      await toolkit.writeScratch({
+      await toolkit.writeScratches({
         "scratch:///a.md": "Content A",
         "scratch:///b.md": "Content B",
       });
@@ -731,26 +737,23 @@ describe("ScratchLmToolkit", () => {
 
     it("reports failed scratch URI when all writes fail", async () => {
       const { toolkit } = makeFailingWriteToolkit(["fail.md"]);
-      const result = await toolkit.writeScratch({ "scratch:///fail.md": "data" });
-      assert.ok(
-        result.startsWith("Failed to write the following scratches:"),
-        `unexpected result: ${result}`,
-      );
+      const result = await toolkit.writeScratches({ "scratch:///fail.md": "data" });
+      assert.ok(result.startsWith("Failed:"), `unexpected result: ${result}`);
       assert.ok(result.includes("scratch:///fail.md"), `expected URI in failure report: ${result}`);
     });
 
-    it("reports only failed scratches when writes partially fail", async () => {
+    it("reports both succeeded and failed scratches when writes partially fail", async () => {
       const { toolkit, mockFs } = makeFailingWriteToolkit(["fail.md"]);
-      const result = await toolkit.writeScratch({
+      const result = await toolkit.writeScratches({
         "scratch:///ok.md": "good",
         "scratch:///fail.md": "bad",
       });
       assert.ok(
-        result.startsWith("Failed to write the following scratches:"),
-        `unexpected result: ${result}`,
+        result.includes("Scratches written: scratch:///ok.md"),
+        `should mention successful URI: ${result}`,
       );
-      assert.ok(result.includes("scratch:///fail.md"), "should mention the failed URI");
-      assert.ok(!result.includes("scratch:///ok.md"), "should not mention the successful URI");
+      assert.ok(result.includes("Failed:"), `should have Failed section: ${result}`);
+      assert.ok(result.includes("scratch:///fail.md"), `should mention failed URI: ${result}`);
       // Successful scratch should still have been written
       const bytes = await mockFs.readFile(Uri.parse("scratch:///ok.md"));
       assert.strictEqual(new TextDecoder().decode(bytes), "good");

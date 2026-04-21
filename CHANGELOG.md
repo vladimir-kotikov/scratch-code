@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.2]
+
+- Prefer local execution in remote sessions
+
 ## [0.7.1]
 
 - Refactor LM tools for improved consistency and error handling

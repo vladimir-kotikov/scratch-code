@@ -133,6 +133,13 @@ type EditScratchOptions = {
   }[];
 };
 
+type WriteScratchOptions = {
+  writes: {
+    uri: string | Uri;
+    content: string;
+  }[];
+};
+
 export type RenameScratchOptions = {
   oldUri: string | Uri;
   newUri: string | Uri;
@@ -357,7 +364,8 @@ export class ScratchLmToolkit extends DisposableContainer {
   }
 
   listScratches = (options?: ListScratchesOptions) => {
-    const filter = options?.filter !== undefined ? normalizeFilter(options.filter) : undefined;
+    const rawFilter = options?.filter;
+    const filter = rawFilter !== undefined ? normalizeFilter(rawFilter) : undefined;
     const pattern = filter?.startsWith("**/") ? new Minimatch(filter) : undefined;
     const prefix = pattern ? undefined : filter?.replace(/\/$/, "");
     return this.treeProvider
@@ -369,7 +377,9 @@ export class ScratchLmToolkit extends DisposableContainer {
           .filter(uri => pattern?.match(uri) ?? true)
           .filter(uri => (prefix ? uri.startsWith(prefix) : true));
 
-        return filtered.length > 0 ? filtered.join("\n") : filter ? "" : "No scratches found.";
+        if (filtered.length > 0) return filtered.join("\n");
+        if (rawFilter) return `No scratches found matching filter '${rawFilter}'.`;
+        return "No scratches found.";
       });
   };
 
@@ -427,9 +437,9 @@ export class ScratchLmToolkit extends DisposableContainer {
       ),
     );
 
-  writeScratches = (scratches: Record<string, string>) =>
+  writeScratches = ({ writes }: WriteScratchOptions): Promise<string> =>
     Promise.allSettled(
-      Object.entries(scratches).map(([uri, content]) =>
+      writes.map(({ uri, content }) =>
         this.fs.writeFile(ensureUri(uri), content, {
           create: true,
           overwrite: true,
@@ -438,7 +448,7 @@ export class ScratchLmToolkit extends DisposableContainer {
     ).then(results =>
       formatBatchResults(
         results,
-        Object.keys(scratches).map(uri => `scratch:///${strip(uriPath(ensureUri(uri)), ["/"])}`),
+        writes.map(({ uri }) => `scratch:///${strip(uriPath(ensureUri(uri)), ["/"])}`),
         paths => `Scratches written: ${paths.join(", ")}`,
       ),
     );
@@ -447,9 +457,11 @@ export class ScratchLmToolkit extends DisposableContainer {
     this.fs.rename(ensureUri(oldUri), ensureUri(newUri), { overwrite: true });
 
   searchScratches = (options: SearchOptions): Promise<string> =>
-    this.searchProvider.search(options).then(matches => {
+    this.searchProvider.search(options).then(({ matches, truncated }) => {
       if (matches.length === 0) {
-        return "No matches found.";
+        return options.filter
+          ? `No matches found for filter '${options.filter}'.`
+          : "No matches found.";
       }
 
       const extractPath = (uri: string): string => strip(uriPath(uri), ["/"]);
@@ -461,10 +473,11 @@ export class ScratchLmToolkit extends DisposableContainer {
         "",
       ];
 
-      return [
-        `Found ${matches.length} match${matches.length === 1 ? "" : "es"}:\n`,
-        ...matches.flatMap(formatMatch),
-      ].join("\n");
+      const header = truncated
+        ? `Found ${matches.length}+ matches (truncated at ${options.maxResults ?? 100}):\n`
+        : `Found ${matches.length} match${matches.length === 1 ? "" : "es"}:\n`;
+
+      return [header, ...matches.flatMap(formatMatch)].join("\n");
     });
 }
 

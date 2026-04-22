@@ -599,7 +599,7 @@ describe("ScratchLmToolkit", () => {
       const mockFs = new MockFS({ ".pinstore": { mtime: 0, content: "" } });
       const treeProvider = new ScratchTreeProvider(mockFs);
       const searchProvider = {
-        search: () => Promise.resolve(matches),
+        search: () => Promise.resolve({ matches, truncated: false }),
       } as unknown as SearchIndexProvider;
       return new ScratchLmToolkit(mockFs, treeProvider, searchProvider);
     };
@@ -699,13 +699,17 @@ describe("ScratchLmToolkit", () => {
 
     it("returns success message when writing a single scratch", async () => {
       const { toolkit } = makeWriteToolkit();
-      const result = await toolkit.writeScratches({ "scratch:///notes.md": "Hello world" });
+      const result = await toolkit.writeScratches({
+        writes: [{ uri: "scratch:///notes.md", content: "Hello world" }],
+      });
       assert.strictEqual(result, "Scratches written: scratch:///notes.md");
     });
 
     it("persists content for a single scratch", async () => {
       const { toolkit, mockFs } = makeWriteToolkit();
-      await toolkit.writeScratches({ "scratch:///notes.md": "Hello world" });
+      await toolkit.writeScratches({
+        writes: [{ uri: "scratch:///notes.md", content: "Hello world" }],
+      });
       const bytes = await mockFs.readFile(Uri.parse("scratch:///notes.md"));
       assert.strictEqual(new TextDecoder().decode(bytes), "Hello world");
     });
@@ -713,9 +717,11 @@ describe("ScratchLmToolkit", () => {
     it("returns success message when writing multiple scratches", async () => {
       const { toolkit } = makeWriteToolkit();
       const result = await toolkit.writeScratches({
-        "scratch:///a.md": "Content A",
-        "scratch:///b.md": "Content B",
-        "scratch:///c.md": "Content C",
+        writes: [
+          { uri: "scratch:///a.md", content: "Content A" },
+          { uri: "scratch:///b.md", content: "Content B" },
+          { uri: "scratch:///c.md", content: "Content C" },
+        ],
       });
       assert.strictEqual(
         result,
@@ -726,8 +732,10 @@ describe("ScratchLmToolkit", () => {
     it("persists content for all scratches in a batch", async () => {
       const { toolkit, mockFs } = makeWriteToolkit();
       await toolkit.writeScratches({
-        "scratch:///a.md": "Content A",
-        "scratch:///b.md": "Content B",
+        writes: [
+          { uri: "scratch:///a.md", content: "Content A" },
+          { uri: "scratch:///b.md", content: "Content B" },
+        ],
       });
       const aBytes = await mockFs.readFile(Uri.parse("scratch:///a.md"));
       const bBytes = await mockFs.readFile(Uri.parse("scratch:///b.md"));
@@ -737,7 +745,9 @@ describe("ScratchLmToolkit", () => {
 
     it("reports failed scratch URI when all writes fail", async () => {
       const { toolkit } = makeFailingWriteToolkit(["fail.md"]);
-      const result = await toolkit.writeScratches({ "scratch:///fail.md": "data" });
+      const result = await toolkit.writeScratches({
+        writes: [{ uri: "scratch:///fail.md", content: "data" }],
+      });
       assert.ok(result.startsWith("Failed:"), `unexpected result: ${result}`);
       assert.ok(result.includes("scratch:///fail.md"), `expected URI in failure report: ${result}`);
     });
@@ -745,8 +755,10 @@ describe("ScratchLmToolkit", () => {
     it("reports both succeeded and failed scratches when writes partially fail", async () => {
       const { toolkit, mockFs } = makeFailingWriteToolkit(["fail.md"]);
       const result = await toolkit.writeScratches({
-        "scratch:///ok.md": "good",
-        "scratch:///fail.md": "bad",
+        writes: [
+          { uri: "scratch:///ok.md", content: "good" },
+          { uri: "scratch:///fail.md", content: "bad" },
+        ],
       });
       assert.ok(
         result.includes("Scratches written: scratch:///ok.md"),

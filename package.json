@@ -113,7 +113,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "list_scratches",
         "userDescription": "Lists available scratches",
-        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered.\nUse when user asks to see available scratches or find files by pattern or directory.\n\nParameters:\n- filter (optional): A glob pattern, a bare basename, a path prefix, or a scratch:/// URI.\n  - Glob pattern: any string containing *, ?, {, or [ (e.g. \"**/*.ts\", \"projects/foo/**\", \"*.md\")\n    Glob patterns that do not already start with \"**/\" are automatically prepended with \"**/\",\n    so all globs match recursively across the full tree (e.g. \"*.md\" matches all .md files, not just root-level).\n  - Bare basename: a single name with no \"/\" (e.g. \"README.md\", \"testing\") is expanded to \"**/name\"\n    and matches files with that name at any depth.\n  - Path prefix: a slash-separated relative path (e.g. \"projects/foo/\", \"projects/foo\") matches all\n    scratch paths that start with it. Trailing slash is optional.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n  All forms match against the root-relative path without a leading slash.\n\nExamples:\n- {} → lists all scratches\n- { filter: \"projects/my-app/\" } → all scratches under projects/my-app/\n- { filter: \"projects/my-app\" } → same as above, trailing slash is optional\n- { filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { filter: \"**/*.ts\" } → all TypeScript files recursively\n- { filter: \"*.ts\" } → same as **/*.ts, auto-expanded to match recursively\n- { filter: \"README.md\" } → all files named README.md anywhere in the tree\n- { filter: \"projects/foo/**\" } → all files under projects/foo/ via glob\n\nReturns: Newline-separated paths (without leading slash), e.g. 'projects/foo/notes.md'. To use a path as a URI in other tools (read_scratch, get_scratch_outline, etc.), prefix it with 'scratch:///', e.g. 'scratch:///projects/foo/notes.md'.",
+        "modelDescription": "Lists all scratch files in the user's scratch storage, optionally filtered.\nUse when user asks to see available scratches or find files by pattern or directory.\n\nParameters:\n- filter (optional): A glob pattern, a bare basename, a path prefix, or a scratch:/// URI.\n  - Glob pattern: any string containing *, ?, {, or [ (e.g. \"**/*.ts\", \"projects/foo/**\", \"*.md\", \"projects/foo/{arch,struct}.md\")\n    Glob patterns that do not already start with \"**/\" are automatically prepended with \"**/\",\n    so all globs match recursively across the full tree (e.g. \"*.md\" matches all .md files, not just root-level).\n    Brace expansion is supported: \"{a,b}.md\" expands to match either \"a.md\" or \"b.md\".\n  - Bare basename: a single name with no \"/\" (e.g. \"README.md\", \"testing\") is expanded to \"**/name\"\n    and matches files with that name at any depth.\n  - Path prefix: a slash-separated relative path (e.g. \"projects/foo/\", \"projects/foo\") matches all\n    scratch paths that start with it. Trailing slash is optional.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n  All forms match against the root-relative path without a leading slash.\n\nExamples:\n- {} → lists all scratches\n- { filter: \"projects/my-app/\" } → all scratches under projects/my-app/\n- { filter: \"projects/my-app\" } → same as above, trailing slash is optional\n- { filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { filter: \"**/*.ts\" } → all TypeScript files recursively\n- { filter: \"*.ts\" } → same as **/*.ts, auto-expanded to match recursively\n- { filter: \"README.md\" } → all files named README.md anywhere in the tree\n- { filter: \"projects/foo/**\" } → all files under projects/foo/ via glob\n- { filter: \"projects/foo/{architecture,structure}.md\" } → only those two specific files\n\nReturns: Newline-separated paths (without leading slash), e.g. 'projects/foo/notes.md'. To use a path as a URI in other tools (read_scratch, get_scratch_outline, etc.), prefix it with 'scratch:///', e.g. 'scratch:///projects/foo/notes.md'.",
         "tags": [
           "scratches",
           "memory"
@@ -212,19 +212,35 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "write_scratch",
         "userDescription": "Writes content to one or more scratch files in a single call",
-        "modelDescription": "Writes content to one or more scratch files, creating them if they don't exist or overwriting if they do.\nUse when user asks to save, create, or update scratch content. Prefer batching multiple writes into a single call.\n\nInput: an object where each key is a scratch URI and its value is the content to write.\n\nExamples:\n- { \"scratch:///notes.md\": \"My notes\" } → creates/overwrites single file\n- { \"scratch:///a.md\": \"Content A\", \"scratch:///b.md\": \"Content B\" } → writes two files at once\n- { \"scratch:///code/test.ts\": \"const x = 1;\" } → creates nested file\n\nReturns: \"Scratches written successfully.\" on full success, or a list of failures. After writing always provide a short (1-2 lines) summary of changes made.",
+        "modelDescription": "Writes content to one or more scratch files, creating them if they don't exist or overwriting if they do.\nUse when user asks to save, create, or update scratch content. Prefer batching multiple writes into a single call.\n\nParameters:\n- writes (required): Array of write requests, each with:\n  - uri (required): Scratch URI (e.g., \"scratch:///notes.md\")\n  - content (required): Full content to write to the file\n\nExamples:\n- { writes: [{ uri: \"scratch:///notes.md\", content: \"My notes\" }] } → creates/overwrites single file\n- { writes: [{ uri: \"scratch:///a.md\", content: \"Content A\" }, { uri: \"scratch:///b.md\", content: \"Content B\" }] } → writes two files at once\n- { writes: [{ uri: \"scratch:///code/test.ts\", content: \"const x = 1;\" }] } → creates nested file\n\nReturns: \"Scratches written: path1, path2\" on full success, or a list of failures. After writing always provide a short (1-2 lines) summary of changes made.",
         "tags": [
           "scratches",
           "memory"
         ],
         "inputSchema": {
           "type": "object",
-          "description": "An object mapping scratch URIs to their content. Each key must be a valid scratch:/// URI or URI string; parent directories will be created if needed.",
-          "additionalProperties": {
-            "type": "string",
-            "description": "The content to write to the scratch file identified by the key URI. Will overwrite existing content if the file exists."
+          "properties": {
+            "writes": {
+              "type": "array",
+              "description": "List of write requests. Each item specifies a file URI and the full content to write.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "description": "The scratch URI to write to (e.g., \"scratch:///notes.md\"). Parent directories will be created if needed."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "The full content to write to the file. Overwrites existing content if the file exists."
+                  }
+                },
+                "required": ["uri", "content"]
+              },
+              "minItems": 1
+            }
           },
-          "minProperties": 1
+          "required": ["writes"]
         }
       },
       {
@@ -383,7 +399,7 @@
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "search_scratches",
         "userDescription": "Searches across scratch file contents",
-        "modelDescription": "Searches across scratch file contents using text or regex patterns, returning matches with context lines.\nUse when user asks to find specific content, patterns, or references across scratches.\n\nParameters:\n- query (required): Search term or regex pattern\n- isRegex (optional): Treat query as regex (default: false)\n- caseSensitive (optional): Case-sensitive search (default: false)\n- filter (optional): Glob pattern, bare basename, path prefix, or scratch:/// URI to limit scope.\n  - Glob (e.g. \"**/*.md\", \"*.md\", \"projects/**\"): patterns without a leading \"**/\" are prepended with it and match recursively.\n  - Bare basename (no \"/\", e.g. \"README.md\"): expanded to \"**/name\" and matches files anywhere in the tree.\n  - Path prefix (contains \"/\", e.g. \"projects/foo\"): restricts search to that directory subtree.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n- contextLines (optional): Lines before/after to include (default: 2)\n- maxResults (optional): Hard limit on matches to return (default: 100). Search terminates when limit is reached; no indication if more results exist.\n\nExamples:\n- { query: \"authentication\" } → finds all occurrences with 2 lines context\n- { query: \"TODO|FIXME\", isRegex: true } → finds TODOs using regex\n- { query: \"function\", filter: \"projects/my-app\" } → finds in all files under projects/my-app/\n- { query: \"function\", filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { query: \"function\", filter: \"**/*.ts\", contextLines: 0 } → finds in TypeScript files, no context\n\nReturns: formatted text listing each match as \"path:line → content\" where line numbers are 1-based (matching get_scratch_outline and read_scratch). Context lines appear indented by two spaces. Example:\n  projects/notes.md:42\n    context before\n    context before\n  → matched line content\n    context after\n    context after",
+        "modelDescription": "Searches across scratch file contents using text or regex patterns, returning matches with context lines.\nUse when user asks to find specific content, patterns, or references across scratches.\n\nParameters:\n- query (required): Search term or regex pattern\n- isRegex (optional): Treat query as regex (default: false)\n- caseSensitive (optional): Case-sensitive search (default: false)\n- filter (optional): Glob pattern, bare basename, path prefix, or scratch:/// URI to limit scope.\n  - Glob (e.g. \"**/*.md\", \"*.md\", \"projects/**\"): patterns without a leading \"**/\" are prepended with it and match recursively.\n    Brace expansion is supported: \"projects/foo/{architecture,structure}.md\" matches exactly those two files.\n  - Bare basename (no \"/\", e.g. \"README.md\"): expanded to \"**/name\" and matches files anywhere in the tree.\n  - Path prefix (contains \"/\", e.g. \"projects/foo\"): restricts search to that directory subtree.\n  - scratch:/// URI: scheme is stripped and the appropriate rule above is applied.\n- contextLines (optional): Lines before/after to include (default: 2, minimum: 0)\n- maxResults (optional): Hard limit on matches to return (default: 100, minimum: 1). When the limit is reached the header reads \"Found N+ matches (truncated at N)\" to signal that further results were omitted.\n\nExamples:\n- { query: \"authentication\" } → finds all occurrences with 2 lines context\n- { query: \"TODO|FIXME\", isRegex: true } → finds TODOs using regex\n- { query: \"function\", filter: \"projects/my-app\" } → finds in all files under projects/my-app/\n- { query: \"function\", filter: \"scratch:///projects/my-app\" } → same, using scratch:/// URI\n- { query: \"function\", filter: \"**/*.ts\", contextLines: 0 } → finds in TypeScript files, no context\n- { query: \"FileSystem\", filter: \"projects/foo/{architecture,structure}.md\" } → searches only those two files\n\nReturns: formatted text listing each match as \"path:line → content\" where line numbers are 1-based (matching get_scratch_outline and read_scratch). Context lines appear indented by two spaces. Example:\n  projects/notes.md:42\n    context before\n    context before\n  → matched line content\n    context after\n    context after",
         "tags": [
           "scratches",
           "search"
@@ -407,16 +423,16 @@
             },
             "filter": {
               "type": "string",
-              "description": "Glob pattern (e.g. \"**/*.md\", \"*.md\"), bare basename (e.g. \"README.md\" — matched anywhere in the tree), path prefix (e.g. \"projects/foo\" — restricts to that directory), or scratch:/// URI to limit search scope. Glob patterns and bare basenames without a leading **/ are automatically matched recursively."
+              "description": "Glob pattern (e.g. \"**/*.md\", \"*.md\"), bare basename (e.g. \"README.md\" — matched anywhere in the tree), path prefix (e.g. \"projects/foo\" — restricts to that directory), or scratch:/// URI to limit search scope. Glob patterns and bare basenames without a leading **/ are automatically matched recursively. Brace expansion is supported in globs (e.g. \"projects/foo/{architecture,structure}.md\")."
             },
             "contextLines": {
               "type": "number",
-              "description": "Number of context lines to include before and after each match. Default: 2.",
+              "description": "Number of context lines to include before and after each match. Minimum: 0, default: 2.",
               "default": 2
             },
             "maxResults": {
               "type": "number",
-              "description": "Maximum number of matches to return. Default: 100.",
+              "description": "Maximum number of matches to return. Minimum: 1, default: 100. When truncated, the header says \"Found N+ matches (truncated at N)\".",
               "default": 100
             }
           },

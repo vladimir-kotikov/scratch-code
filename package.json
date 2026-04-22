@@ -2,7 +2,7 @@
   "name": "scratch-code",
   "displayName": "scratch-code",
   "description": "Scratchpad for VSCode",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -235,12 +235,17 @@
                     "description": "The full content to write to the file. Overwrites existing content if the file exists."
                   }
                 },
-                "required": ["uri", "content"]
+                "required": [
+                  "uri",
+                  "content"
+                ]
               },
               "minItems": 1
             }
           },
-          "required": ["writes"]
+          "required": [
+            "writes"
+          ]
         }
       },
       {

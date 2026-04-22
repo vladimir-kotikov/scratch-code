@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.0]
+
+- Refactor `write_scratch` input to structured `{writes: [{uri, content}]}` array, consistent with `read_scratch` and `edit_scratch`
+- Improve `search_scratches`: include filter value in empty-result messages, surface stderr in failure errors, add truncation notice when results are cut off
+
 ## [0.7.2]
 
 - Prefer local execution in remote sessions

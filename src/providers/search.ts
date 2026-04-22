@@ -212,24 +212,40 @@ export class SearchIndexProvider extends DisposableContainer {
       filter,
     }: SearchOptions,
     signal?: AbortSignal,
-  ): Promise<SearchMatch[]> => {
+  ): Promise<{ matches: SearchMatch[]; truncated: boolean }> => {
     if (!query || query.trim() === "") {
       throw new Error("Query cannot be empty");
     }
 
+    if (maxResults < 1) {
+      throw new Error(`maxResults must be at least 1 (got ${maxResults})`);
+    }
+
+    if (contextLines < 0) {
+      throw new Error(`contextLines must be ≥ 0 (got ${contextLines})`);
+    }
+
     if (signal?.aborted) {
-      return Promise.resolve([]);
+      return Promise.resolve({ matches: [], truncated: false });
     }
 
     const args = this.buildSearchArgs(query, isRegex, caseSensitive, contextLines, filter);
 
-    const { promise, resolve, reject } = Promise.withResolvers<SearchMatch[]>();
+    const { promise, resolve, reject } = Promise.withResolvers<{
+      matches: SearchMatch[];
+      truncated: boolean;
+    }>();
 
     // Use spawn for streaming support
     const rootUri = Uri.file(this.rootPath);
     let buffer = "";
+    let stderrBuffer = "";
 
     const childProcess = child_process.spawn(rgPath, args);
+
+    childProcess.stderr?.on("data", (chunk: Buffer) => {
+      stderrBuffer += chunk.toString();
+    });
 
     const cleanup = () => {
       childProcess.stdout.removeAllListeners();
@@ -239,7 +255,7 @@ export class SearchIndexProvider extends DisposableContainer {
     const abortHandler = () => {
       childProcess.kill();
       cleanup();
-      resolve([]);
+      resolve({ matches: [], truncated: false });
     };
 
     signal?.addEventListener("abort", abortHandler, { once: true });
@@ -258,7 +274,8 @@ export class SearchIndexProvider extends DisposableContainer {
         state,
       );
 
-      if (Object.keys(state.matches).length >= maxResults) {
+      // Fetch one extra to detect truncation; +1 here matches the slice in close handler
+      if (Object.keys(state.matches).length >= maxResults + 1) {
         childProcess.kill();
         // Don't resolve here - let close handler do it after processing buffer
       }
@@ -270,7 +287,7 @@ export class SearchIndexProvider extends DisposableContainer {
         signal?.removeEventListener("abort", abortHandler);
 
         if (signal?.aborted) {
-          return resolve([]);
+          return resolve({ matches: [], truncated: false });
         }
 
         // Process any remaining buffer before finalizing
@@ -286,10 +303,14 @@ export class SearchIndexProvider extends DisposableContainer {
 
         // ripgrep exits with code 1 if no matches found
         if (code !== null && code !== 0 && code !== 1) {
-          return reject(new Error(`Search failed with exit code ${code}`));
+          const detail = stderrBuffer.trim() ? `: ${stderrBuffer.trim()}` : ` (exit code ${code})`;
+          return reject(new Error(`Search failed${detail}`));
         }
 
-        resolve(Object.values(state.matches).slice(0, maxResults));
+        resolve({
+          matches: Object.values(state.matches).slice(0, maxResults),
+          truncated: Object.keys(state.matches).length > maxResults,
+        });
       })
       .on("error", err => reject(new Error(`Search failed: ${err.message}`)));
 

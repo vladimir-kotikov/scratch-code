@@ -308,7 +308,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("returns matches for a plain-string query", async () => {
-    const matches = await provider.search({ query: "Hello" });
+    const { matches } = await provider.search({ query: "Hello" });
     assert.ok(matches.length >= 1, "should find at least one match");
     assert.ok(
       matches.some(m => m.content.includes("Hello")),
@@ -317,7 +317,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("resolves to empty array (not rejection) when no matches found (exit code 1)", async () => {
-    const matches = await provider.search({ query: "zzz_no_such_content_xyz" });
+    const { matches } = await provider.search({ query: "zzz_no_such_content_xyz" });
     assert.deepEqual(matches, []);
   });
 
@@ -332,12 +332,12 @@ describe("SearchIndexProvider.search()", () => {
   it("rejects on invalid regex (exit code > 1)", async () => {
     await assert.rejects(
       async () => provider.search({ query: "[invalid(", isRegex: true }),
-      /Search failed with exit code/,
+      /Search failed/,
     );
   });
 
   it("case-insensitive search by default finds both Hello and hello", async () => {
-    const matches = await provider.search({ query: "hello", caseSensitive: false });
+    const { matches } = await provider.search({ query: "hello", caseSensitive: false });
     assert.ok(
       matches.some(m => m.content.toLowerCase().includes("hello")),
       "should match case-insensitively",
@@ -345,8 +345,8 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("case-sensitive search restricts to exact case", async () => {
-    const lower = await provider.search({ query: "hello", caseSensitive: true });
-    const upper = await provider.search({ query: "Hello", caseSensitive: true });
+    const { matches: lower } = await provider.search({ query: "hello", caseSensitive: true });
+    const { matches: upper } = await provider.search({ query: "Hello", caseSensitive: true });
     // Case-sensitive 'hello' should not match 'Hello'
     assert.ok(
       !lower.some(m => m.content.includes("Hello World")),
@@ -356,27 +356,31 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("isRegex: true matches using regex syntax", async () => {
-    const matches = await provider.search({ query: "Hello.*(World|again)", isRegex: true });
+    const { matches } = await provider.search({ query: "Hello.*(World|again)", isRegex: true });
     assert.ok(matches.length >= 1, "regex should match");
   });
 
   it("isRegex: false treats special characters as literals", async () => {
     // A regex-special pattern should match nothing when treated as literal
-    const matches = await provider.search({ query: "Hello.*(World|again)", isRegex: false });
+    const { matches } = await provider.search({ query: "Hello.*(World|again)", isRegex: false });
     assert.deepEqual(matches, [], "literal special chars should not match");
   });
 
   it("maxResults limits number of matches returned", async () => {
-    const all = await provider.search({ query: "Hello" });
+    const { matches: all } = await provider.search({ query: "Hello" });
     if (all.length < 2) return; // skip if not enough matches for this test
-    const limited = await provider.search({ query: "Hello", maxResults: 1 });
+    const { matches: limited, truncated } = await provider.search({
+      query: "Hello",
+      maxResults: 1,
+    });
     assert.strictEqual(limited.length, 1, "should respect maxResults limit");
+    assert.strictEqual(truncated, true, "should signal truncation");
   });
 
   it("AbortSignal already aborted returns empty array immediately", async () => {
     const controller = new AbortController();
     controller.abort();
-    const matches = await provider.search({ query: "Hello" }, controller.signal);
+    const { matches } = await provider.search({ query: "Hello" }, controller.signal);
     assert.deepEqual(matches, []);
   });
 
@@ -384,18 +388,18 @@ describe("SearchIndexProvider.search()", () => {
     const controller = new AbortController();
     const promise = provider.search({ query: "Hello" }, controller.signal);
     controller.abort();
-    const matches = await promise;
+    const { matches } = await promise;
     assert.deepEqual(matches, []);
   });
 
   it("filter glob restricts results to matching files", async () => {
-    const allMatches = await provider.search({ query: "hello", caseSensitive: false });
-    const tsMatches = await provider.search({
+    const { matches: allMatches } = await provider.search({ query: "hello", caseSensitive: false });
+    const { matches: tsMatches } = await provider.search({
       query: "hello",
       caseSensitive: false,
       filter: "**/*.ts",
     });
-    const txtMatches = await provider.search({
+    const { matches: txtMatches } = await provider.search({
       query: "hello",
       caseSensitive: false,
       filter: "**/*.txt",
@@ -417,7 +421,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("contextLines: 0 produces matches with no context", async () => {
-    const matches = await provider.search({ query: "Hello", contextLines: 0 });
+    const { matches } = await provider.search({ query: "Hello", contextLines: 0 });
     assert.ok(matches.length >= 1);
     assert.ok(
       matches.every(m => m.context.length === 0),
@@ -426,7 +430,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("contextLines > 0 includes surrounding lines in context", async () => {
-    const matches = await provider.search({ query: "Hello World", contextLines: 1 });
+    const { matches } = await provider.search({ query: "Hello World", contextLines: 1 });
     assert.ok(matches.length >= 1);
     const match = matches.find(m => m.content.includes("Hello World"));
     assert.ok(match, "should find the target match");
@@ -434,7 +438,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("match URIs use the scratch:// scheme", async () => {
-    const matches = await provider.search({ query: "Hello" });
+    const { matches } = await provider.search({ query: "Hello" });
     assert.ok(matches.length >= 1);
     assert.ok(
       matches.every(m => m.uri.startsWith("scratch:")),
@@ -443,7 +447,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("match URIs do not contain the root filesystem path", async () => {
-    const matches = await provider.search({ query: "Hello" });
+    const { matches } = await provider.search({ query: "Hello" });
     assert.ok(matches.length >= 1);
     assert.ok(
       matches.every(m => !m.uri.includes(tmpDir)),
@@ -452,7 +456,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("each match has a positive line number", async () => {
-    const matches = await provider.search({ query: "Hello" });
+    const { matches } = await provider.search({ query: "Hello" });
     assert.ok(
       matches.every(m => typeof m.line === "number" && m.line > 0),
       "line numbers should be positive integers",
@@ -460,7 +464,7 @@ describe("SearchIndexProvider.search()", () => {
   });
 
   it("submatches contain match offsets within the content line", async () => {
-    const matches = await provider.search({ query: "Hello", contextLines: 0 });
+    const { matches } = await provider.search({ query: "Hello", contextLines: 0 });
     const hit = matches.find(m => m.content.includes("Hello"));
     assert.ok(hit, "should find a match");
     assert.ok(hit.submatches.length > 0, "submatches should be populated");

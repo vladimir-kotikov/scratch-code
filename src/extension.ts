@@ -100,8 +100,8 @@ export class ScratchExtension extends DisposableContainer {
         ])
       : this.searchProvider
           .search({ query, contextLines: 0 })
-          .then(
-            map(match => ({
+          .then(({ matches }) =>
+            matches.map(match => ({
               label: "",
               alwaysShow: true,
               resourceUri: Uri.parse(match.uri),

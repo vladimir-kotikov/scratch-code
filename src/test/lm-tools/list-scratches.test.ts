@@ -44,8 +44,9 @@ describe("list_scratches tool (integration)", () => {
     assert.ok(!result.includes("lm-test-tmp/list-scratches/alpha.md"), result);
   });
 
-  it("returns empty string for a non-matching pattern", async () => {
+  it("returns a helpful message for a non-matching pattern", async () => {
     const result = await invoke("list_scratches", { filter: "lm-test-tmp/no-such-dir/**" });
-    assert.strictEqual(result.trim(), "");
+    assert.ok(result.includes("lm-test-tmp/no-such-dir/**"), result);
+    assert.ok(!result.includes("alpha.md"), result);
   });
 });

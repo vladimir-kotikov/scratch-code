@@ -77,6 +77,34 @@ describe("search_scratches tool (integration)", () => {
     });
     const matchCount = (result.match(/→/g) ?? []).length;
     assert.strictEqual(matchCount, 1, `expected 1 match, got:\n${result}`);
+    assert.ok(result.includes("truncated at 1"), `expected truncation notice, got:\n${result}`);
+  });
+
+  it("does not show truncation notice when results fit within maxResults", async () => {
+    // There are 2 matches for unique_tok_XYZ (alpha.md and code.ts)
+    const result = await invoke("search_scratches", {
+      query: "unique_tok_XYZ",
+      filter: fix.base,
+      maxResults: 10,
+    });
+    assert.ok(!result.includes("truncated"), `unexpected truncation notice, got:\n${result}`);
+    assert.ok(result.includes("Found 2 matches"), result);
+  });
+
+  it("rejects maxResults=0 with a validation error", async () => {
+    await assert.rejects(
+      () =>
+        invoke("search_scratches", { query: "unique_tok_XYZ", filter: fix.base, maxResults: 0 }),
+      /maxResults must be at least 1/,
+    );
+  });
+
+  it("rejects contextLines=-1 with a validation error", async () => {
+    await assert.rejects(
+      () =>
+        invoke("search_scratches", { query: "unique_tok_XYZ", filter: fix.base, contextLines: -1 }),
+      /contextLines must be/,
+    );
   });
 
   it("formats output with path:line and → match line", async () => {

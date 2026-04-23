@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.3]
+
+No user-facing changes in this release
+
 ## [0.8.2]
 
 - Add file metadata (line count, size, modification time) to `list_scratches` and `get_scratch_outline` output

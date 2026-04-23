@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.1]
+
+- Fix `edit_scratch` operations applied in wrong order
+
 ## [0.8.0]
 
 - Refactor `write_scratch` input to structured `{writes: [{uri, content}]}` array, consistent with `read_scratch` and `edit_scratch`

@@ -804,13 +804,35 @@ describe("ScratchLmToolkit", () => {
     it("returns 'No symbols found.' when provider returns empty array", async () => {
       const toolkit = makeOutlineToolkit([]);
       const result = await toolkit.getScratchOutline({ uri: "scratch:///notes.md" });
-      assert.strictEqual(result, "No symbols found.");
+      assert.ok(result.includes("No symbols found."), `expected 'No symbols found.' in: ${result}`);
     });
 
     it("returns 'No symbols found.' when provider returns undefined", async () => {
       const toolkit = makeOutlineToolkit(undefined);
       const result = await toolkit.getScratchOutline({ uri: "scratch:///notes.md" });
-      assert.strictEqual(result, "No symbols found.");
+      assert.ok(result.includes("No symbols found."), `expected 'No symbols found.' in: ${result}`);
+    });
+
+    it("includes file metadata header (line count, size, modified time)", async () => {
+      const mockFs = new MockFS({
+        ".pinstore": { mtime: 0, content: "" },
+        "notes.md": { mtime: 1745232600000, content: "# Title\n\n## Section A\nContent here." },
+      });
+      const treeProvider = new ScratchTreeProvider(mockFs);
+      const symbolProvider = () => Promise.resolve([makeDocSymbol("Title", SymbolKind.String, 1)]);
+      const toolkit = new ScratchLmToolkit(
+        mockFs,
+        treeProvider,
+        undefined as never,
+        symbolProvider,
+        0,
+      );
+      const result = await toolkit.getScratchOutline({ uri: "scratch:///notes.md" });
+      assert.ok(result.includes("4 lines"), `expected '4 lines' in header: ${result}`);
+      assert.ok(result.includes("B,"), `expected size in header: ${result}`);
+      assert.ok(result.includes("modified "), `expected modification time in header: ${result}`);
+      assert.ok(result.includes("UTC"), `expected UTC suffix in header: ${result}`);
+      assert.ok(result.includes("\nTitle"), `expected symbol after header: ${result}`);
     });
 
     it("retries once when first call returns empty (cold-start)", async () => {
@@ -853,7 +875,7 @@ describe("ScratchLmToolkit", () => {
       );
       const result = await toolkit.getScratchOutline({ uri: "scratch:///notes.md" });
       assert.strictEqual(callCount, 2, "should have retried exactly once");
-      assert.strictEqual(result, "No symbols found.");
+      assert.ok(result.includes("No symbols found."), `expected 'No symbols found.' in: ${result}`);
     });
 
     it("formats top-level DocumentSymbol with name, kind and 1-based line number", async () => {

@@ -6,7 +6,7 @@ import { map, prop, sort } from "../util/fu";
 import { asPromise } from "../util/promises";
 import { splitWords, strip } from "../util/text";
 import { ensureUri, normalizeFilter, uriPath } from "../util/uri";
-import { ScratchFileSystemProvider } from "./fs";
+import { FileMeta, ScratchFileSystemProvider } from "./fs";
 import { SearchIndexProvider, SearchOptions } from "./search";
 import { ScratchTreeProvider } from "./tree";
 
@@ -353,6 +353,17 @@ const formatBatchResults = <T>(
     .join("\n");
 };
 
+const formatFileMeta = ({ lines, size, mtime }: FileMeta): string => {
+  const date = new Date(mtime).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  const sizeStr =
+    size < 1024
+      ? `${size} B`
+      : size < 1024 * 1024
+        ? `${(size / 1024).toFixed(1)} KB`
+        : `${(size / 1024 / 1024).toFixed(1)} MB`;
+  return `${lines} lines, ${sizeStr}, modified ${date}`;
+};
+
 export class ScratchLmToolkit extends DisposableContainer {
   constructor(
     private readonly fs: ScratchFileSystemProvider,
@@ -378,9 +389,19 @@ export class ScratchLmToolkit extends DisposableContainer {
           .filter(uri => pattern?.match(uri) ?? true)
           .filter(uri => (prefix ? uri.startsWith(prefix) : true));
 
-        if (filtered.length > 0) return filtered.join("\n");
-        if (rawFilter) return `No scratches found matching filter '${rawFilter}'.`;
-        return "No scratches found.";
+        if (filtered.length === 0) {
+          if (rawFilter) return `No scratches found matching filter '${rawFilter}'.`;
+          return "No scratches found.";
+        }
+
+        return Promise.all(
+          filtered.map(p =>
+            this.fs
+              .fileMeta(ensureUri(`scratch:///${p}`))
+              .then(meta => `${p} (${formatFileMeta(meta)})`)
+              .catch(() => p),
+          ),
+        ).then(entries => entries.join("\n"));
       });
   };
 
@@ -405,19 +426,22 @@ export class ScratchLmToolkit extends DisposableContainer {
       ),
     );
 
-  getScratchOutline = async ({ uri, depth = 2 }: OutlineOptions): Promise<string> =>
-    retryOnEmpty(() => asPromise(this.symbolProvider(ensureUri(uri))), this.retryDelayMs).then(
-      symbols => {
-        if (symbols.length === 0) return "No symbols found.";
+  getScratchOutline = async ({ uri, depth = 2 }: OutlineOptions): Promise<string> => {
+    const resolvedUri = ensureUri(uri);
+    const [symbols, meta] = await Promise.all([
+      retryOnEmpty(() => asPromise(this.symbolProvider(resolvedUri)), this.retryDelayMs),
+      this.fs.fileMeta(resolvedUri),
+    ]);
+    const header = formatFileMeta(meta);
+    if (symbols.length === 0) return `${header}\nNo symbols found.`;
 
-        const lines =
-          "children" in symbols[0]
-            ? formatDocumentSymbols(symbols as vscode.DocumentSymbol[], depth)
-            : formatSymbolInfos(symbols as vscode.SymbolInformation[], depth);
+    const lines =
+      "children" in symbols[0]
+        ? formatDocumentSymbols(symbols as vscode.DocumentSymbol[], depth)
+        : formatSymbolInfos(symbols as vscode.SymbolInformation[], depth);
 
-        return lines.length > 0 ? lines.join("\n") : "No symbols found.";
-      },
-    );
+    return `${header}\n${lines.length > 0 ? lines.join("\n") : "No symbols found."}`;
+  };
 
   editScratches = ({ edits }: EditScratchOptions): Promise<string> =>
     Promise.allSettled(

@@ -42,6 +42,12 @@ export const isFile = (type: FileType) => (type & ~FileType.SymbolicLink) === Fi
 
 export const isDir = (type: FileType) => (type & ~FileType.SymbolicLink) === FileType.Directory;
 
+export type FileMeta = {
+  lines: number;
+  size: number;
+  mtime: number; // milliseconds since epoch
+};
+
 export class ScratchFileSystemProvider implements FileSystemProvider, Disposable {
   static readonly SCHEME = SCHEME;
   static readonly ROOT = Uri.parse(`${ScratchFileSystemProvider.SCHEME}:/`);
@@ -113,6 +119,15 @@ export class ScratchFileSystemProvider implements FileSystemProvider, Disposable
     vscode.workspace.fs.readFile(toFilesystemUri(this.scratchDir, uri));
 
   readLines = (uri: Uri) => this.readFile(uri).then(bytesToString).then(call("split", "\n"));
+
+  fileMeta = (uri: Uri): Promise<FileMeta> =>
+    Promise.all([Promise.resolve(this.readLines(uri)), Promise.resolve(this.stat(uri))]).then(
+      ([lines, stat]) => ({
+        lines: lines.length,
+        size: stat.size,
+        mtime: stat.mtime,
+      }),
+    );
 
   writeLines = (
     uri: Uri,

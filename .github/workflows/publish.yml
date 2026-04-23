@@ -19,8 +19,11 @@ jobs:
       - run: gh release create "${{ github.ref_name }}" *.vsix --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish to marketplace
-        run: npx vsce publish
+      - run: npx vsce publish
         if: success()
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - run: npx ovsx publish *.vsix
+        if: success()
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}

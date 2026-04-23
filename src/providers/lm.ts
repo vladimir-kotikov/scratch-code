@@ -312,7 +312,8 @@ const applyEdits = (lines: string[], ops: ScratchEditOp[]): string[] => {
     throw new Error(`edit_scratch: ${[...errors, ...overlaps].join("; ")}`);
   }
 
-  edits.forEach(op => op.apply(lines));
+  // reverse to be in descending (bottom-to-top) order, and apply.
+  edits.toReversed().forEach(op => op.apply(lines));
   return lines;
 };
 

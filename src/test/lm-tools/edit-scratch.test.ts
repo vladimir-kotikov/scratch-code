@@ -63,6 +63,25 @@ describe("edit_scratch tool (integration)", () => {
     assert.strictEqual(await fix.read("multi.md"), "ONE\nline two\nTHREE");
   });
 
+  it("applies multi-op batch using original line numbers regardless of line-count changes", async () => {
+    // File: 5 lines. Op1 replaces lines 1-2 with 3 lines (adds 1). Op2 replaces line 4
+    // with original-line-4 content. Both ops reference *original* line numbers; without
+    // bottom-to-top application the line shift from Op1 would cause Op2 to hit the wrong line.
+    const uri = await setup("multi-shift.md", "a\nb\nc\nd\ne");
+    await invoke("edit_scratch", {
+      edits: [
+        {
+          uri,
+          edits: [
+            { op: "replace", lineFrom: 1, lineTo: 2, content: "AB\nCD\nEF" },
+            { op: "replace", lineFrom: 4, lineTo: 4, content: "D_ORIG" },
+          ],
+        },
+      ],
+    });
+    assert.strictEqual(await fix.read("multi-shift.md"), "AB\nCD\nEF\nc\nD_ORIG\ne");
+  });
+
   it("edits two files in a single batch call", async () => {
     const uri1 = await setup("batch-a.md", "alpha");
     const uri2 = await setup("batch-b.md", "beta");

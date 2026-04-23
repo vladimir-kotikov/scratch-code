@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2]
+
+- Add file metadata (line count, size, modification time) to `list_scratches` and `get_scratch_outline` output
+- Add `fileMeta` method to `ScratchFileSystemProvider` for reusable per-file stat + line count retrieval
+- Clarify `get_scratch_outline` tool description: accepts exactly one URI per call, no batching
+
 ## [0.8.1]
 
 - Fix `edit_scratch` operations applied in wrong order

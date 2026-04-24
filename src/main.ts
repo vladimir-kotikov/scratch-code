@@ -7,9 +7,22 @@ import { registerTool, ScratchLmToolkit } from "./providers/lm";
 import { SearchIndexProvider } from "./providers/search";
 import { ScratchTreeProvider, SortOrder } from "./providers/tree";
 import { strip } from "./util/text";
-import { uriPath } from "./util/uri";
+import { ensureUri, uriPath } from "./util/uri";
 
 const scratchUriScheme = "scratch";
+
+/**
+ * Returns a trusted MarkdownString containing a clickable link that opens
+ * the given scratch URI in the VS Code editor.
+ */
+const mdScratchLink = (uri: string | vscode.Uri): vscode.MarkdownString => {
+  const scratchUri = `scratch:///${ensureUri(uri).path.replace(/^\//, "")}`;
+  const md = new vscode.MarkdownString(
+    `[${scratchUri}](command:vscode.open?${encodeURIComponent(JSON.stringify([scratchUri]))})`,
+  );
+  md.isTrusted = { enabledCommands: ["vscode.open"] };
+  return md;
+};
 
 export function activate(context: vscode.ExtensionContext) {
   let scratchDirSetting: string | undefined = vscode.workspace
@@ -63,46 +76,61 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("scratches.unpin", extension.unpinScratch),
     registerTool("list_scratches", lmToolset.listScratches, {
       invocationMessage: options =>
-        `Reading list of scratches${options?.filter ? ` matching "${options.filter}"` : ""}.`,
+        `Read list of scratches${options?.filter ? ` matching "${options.filter}"` : ""}.`,
     }),
     registerTool("read_scratch", lmToolset.readScratch, {
       invocationMessage: ({ reads }) =>
-        reads.length === 1 ? `Reading ${reads[0].uri}` : `Reading ${reads.length} scratches`,
+        reads.length === 1
+          ? `Read ${mdScratchLink(reads[0].uri)}`
+          : `Read ${reads.length} scratches`,
       confirmationMessage: ({ reads }) => ({
-        title: "Read scratch?",
-        message: reads.map(r => String(r.uri)).join("\n"),
+        title: "Allow reading scratch?",
+        message:
+          reads.length === 1
+            ? mdScratchLink(reads[0].uri)
+            : reads.map(r => String(r.uri)).join("\n"),
       }),
     }),
     registerTool("get_scratch_outline", lmToolset.getScratchOutline, {
-      invocationMessage: ({ uri }) => `Reading structure of ${uri}`,
+      invocationMessage: ({ uri }) => `Read outline of ${mdScratchLink(uri)}`,
     }),
     registerTool("edit_scratch", lmToolset.editScratches, {
       invocationMessage: ({ edits }) =>
-        edits.length === 1 ? `Editing ${edits[0].uri}` : `Editing ${edits.length} scratches`,
+        edits.length === 1
+          ? `Edited ${mdScratchLink(edits[0].uri)}`
+          : `Edited ${edits.length} scratches`,
       confirmationMessage: ({ edits }) => ({
-        title: `Edit scratch${edits.length === 1 ? "" : "es"}?`,
-        message: edits.map(e => String(e.uri)).join("\n"),
+        title: `Allow editing scratch${edits.length === 1 ? "" : "es"}?`,
+        message:
+          edits.length === 1
+            ? mdScratchLink(edits[0].uri)
+            : edits.map(e => String(e.uri)).join("\n"),
       }),
     }),
     registerTool("write_scratch", lmToolset.writeScratches, {
       invocationMessage: ({ writes }) =>
-        writes.length === 1 ? `Writing ${writes[0].uri}` : `Writing ${writes.length} scratches`,
+        writes.length === 1
+          ? `Wrote ${mdScratchLink(writes[0].uri)}`
+          : `Wrote ${writes.length} scratches`,
       confirmationMessage: ({ writes }) => ({
-        title: `Write scratch${writes.length === 1 ? "" : "es"}?`,
-        message: writes.map(w => String(w.uri)).join(", "),
+        title: `Allow writing scratch${writes.length === 1 ? "" : "es"}?`,
+        message:
+          writes.length === 1
+            ? mdScratchLink(writes[0].uri)
+            : writes.map(w => String(w.uri)).join(", "),
       }),
     }),
     registerTool("rename_scratch", lmToolset.renameScratch, {
       invocationMessage: ({ oldUri, newUri }) =>
-        `Moving ${oldUri} to ${strip(uriPath(newUri), ["/"])}`,
+        `Renamed ${mdScratchLink(oldUri)} to ${mdScratchLink(newUri)}`,
       confirmationMessage: ({ oldUri, newUri }) => ({
-        title: "Move/rename scratch?",
-        message: `Move/rename ${oldUri} -> ${strip(uriPath(newUri), ["/"])}.`,
+        title: "Allow move/rename scratch?",
+        message: `${String(oldUri)} -> ${strip(uriPath(newUri), ["/"])}.`,
       }),
     }),
     registerTool("search_scratches", lmToolset.searchScratches, {
       invocationMessage: ({ query, filter }) =>
-        `Searching for "${query}"${filter ? ` in ${filter}` : ""}`,
+        `Searched for "${query}"${filter ? ` in ${filter}` : ""}`,
     }),
     extension,
     treeDataProvider,

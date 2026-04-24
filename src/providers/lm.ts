@@ -532,10 +532,13 @@ export const registerTool = <
   name: string,
   impl: (params: P) => R,
   params?: {
-    invocationMessage?: string | ((params: P) => string);
+    invocationMessage?:
+      | string
+      | vscode.MarkdownString
+      | ((params: P) => string | vscode.MarkdownString);
     confirmationMessage?:
-      | { title: string; message: string }
-      | ((params: P) => { title: string; message: string });
+      | { title: string; message: string | vscode.MarkdownString }
+      | ((params: P) => { title: string; message: string | vscode.MarkdownString });
   },
 ) =>
   vscode.lm.registerTool<P>(name, {

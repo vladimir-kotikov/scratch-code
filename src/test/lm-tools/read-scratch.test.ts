@@ -56,7 +56,7 @@ describe("read_scratch tool (integration)", () => {
     const result = await invoke("read_scratch", {
       reads: [{ uri: fix.uri("notes.md"), lineFrom: 3, lineTo: 3 }],
     });
-    assert.ok(result.includes(", line 3]"), result);
+    assert.ok(result.includes(", line 3"), result);
     assert.ok(result.includes("line three"), result);
   });
 

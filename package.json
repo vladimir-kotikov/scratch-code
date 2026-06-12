@@ -453,6 +453,11 @@
         "scratches.scratchDirectory": {
           "type": "string",
           "description": "Directory where scratch files are stored, defaults to extension's global storage directory"
+        },
+        "scratches.ripgrepPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the ripgrep (rg) binary used for search. Leave empty to auto-detect: uses VS Code's bundled ripgrep if available, otherwise falls back to system rg on PATH."
         }
       }
     },

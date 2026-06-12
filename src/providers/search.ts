@@ -1,4 +1,5 @@
 import * as child_process from "child_process";
+import * as fs from "node:fs";
 import path from "node:path";
 import { match, P } from "ts-pattern";
 import { env, Uri } from "vscode";
@@ -6,7 +7,12 @@ import { DisposableContainer } from "../util/containers";
 import { normalizeFilter, toScratchUri } from "../util/uri";
 
 const rgBinary = process.platform === "win32" ? "rg.exe" : "rg";
-const rgPath = path.join(env.appRoot, "node_modules/@vscode/ripgrep/bin", rgBinary);
+
+const resolveRgPath = (configured?: string): string => {
+  if (configured) return configured;
+  const vscodeRgPath = path.join(env.appRoot, "node_modules/@vscode/ripgrep/bin", rgBinary);
+  return fs.existsSync(vscodeRgPath) ? vscodeRgPath : rgBinary;
+};
 
 export type SearchOptions = {
   query: string;
@@ -171,8 +177,14 @@ export const processRipgrepMatch = (
 };
 
 export class SearchIndexProvider extends DisposableContainer {
-  constructor(private readonly rootPath: string) {
+  private readonly rgPath: string;
+
+  constructor(
+    private readonly rootPath: string,
+    configuredRgPath?: string,
+  ) {
     super();
+    this.rgPath = resolveRgPath(configuredRgPath);
   }
 
   dispose(): void {
@@ -241,7 +253,7 @@ export class SearchIndexProvider extends DisposableContainer {
     let buffer = "";
     let stderrBuffer = "";
 
-    const childProcess = child_process.spawn(rgPath, args);
+    const childProcess = child_process.spawn(this.rgPath, args);
 
     childProcess.stderr?.on("data", (chunk: Buffer) => {
       stderrBuffer += chunk.toString();

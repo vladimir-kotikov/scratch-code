@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.4]
+
+- Fix search when ripgrep (rg) is not supplied with VS Code
+- clickable links in lm tool outputs
+
 ## [0.8.3]
 
 No user-facing changes in this release
